@@ -4,6 +4,7 @@ import { calculateTradeStats, formatCurrency } from "@/utils/tradeCalculations";
 import { StatCard } from "./StatCard";
 import { TradeRow } from "./TradeRow";
 import { TradeDetail } from "./TradeDetail";
+import { ImportTrades } from "./ImportTrades";
 import {
   TrendingUp,
   Target,
@@ -17,12 +18,25 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface DashboardProps {
-  trades: Trade[];
+  initialTrades: Trade[];
 }
 
-export function Dashboard({ trades }: DashboardProps) {
+export function Dashboard({ initialTrades }: DashboardProps) {
+  const [trades, setTrades] = useState<Trade[]>(initialTrades);
   const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null);
   const stats = calculateTradeStats(trades);
+
+  const handleImportTrades = (newTrades: Trade[]) => {
+    // Add new trades and sort by fecha_entrada descending
+    const allTrades = [...newTrades, ...trades].sort(
+      (a, b) => new Date(b.fecha_entrada).getTime() - new Date(a.fecha_entrada).getTime()
+    );
+    // Remove duplicates by id
+    const uniqueTrades = allTrades.filter(
+      (trade, index, self) => index === self.findIndex((t) => t.id === trade.id)
+    );
+    setTrades(uniqueTrades);
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -44,6 +58,7 @@ export function Dashboard({ trades }: DashboardProps) {
               </div>
             </div>
             <div className="flex items-center gap-4">
+              <ImportTrades onImport={handleImportTrades} />
               <div className="text-right">
                 <p className="text-xs text-muted-foreground">Saldo Actual</p>
                 <p className="font-mono font-bold text-lg text-foreground">
