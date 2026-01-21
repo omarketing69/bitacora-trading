@@ -5,6 +5,8 @@ import { StatCard } from "./StatCard";
 import { TradeRow } from "./TradeRow";
 import { TradeDetail } from "./TradeDetail";
 import { ImportTrades } from "./ImportTrades";
+import { useAuth } from "@/contexts/AuthContext";
+import { useTrades } from "@/hooks/useTrades";
 import {
   TrendingUp,
   Target,
@@ -14,29 +16,25 @@ import {
   Scale,
   ChevronDown,
   ChevronUp,
+  LogOut,
+  Loader2,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "@/components/ui/button";
 
-interface DashboardProps {
-  initialTrades: Trade[];
-}
-
-export function Dashboard({ initialTrades }: DashboardProps) {
-  const [trades, setTrades] = useState<Trade[]>(initialTrades);
+export function Dashboard() {
+  const { user, signOut } = useAuth();
+  const { trades, loading, importTrades } = useTrades();
   const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null);
   const stats = calculateTradeStats(trades);
 
-  const handleImportTrades = (newTrades: Trade[]) => {
-    // Add new trades and sort by fecha_entrada descending
-    const allTrades = [...newTrades, ...trades].sort(
-      (a, b) => new Date(b.fecha_entrada).getTime() - new Date(a.fecha_entrada).getTime()
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
     );
-    // Remove duplicates by id
-    const uniqueTrades = allTrades.filter(
-      (trade, index, self) => index === self.findIndex((t) => t.id === trade.id)
-    );
-    setTrades(uniqueTrades);
-  };
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -53,13 +51,13 @@ export function Dashboard({ initialTrades }: DashboardProps) {
                   Trading Journal
                 </h1>
                 <p className="text-xs text-muted-foreground">
-                  Bitácora de Operaciones
+                  {user?.email}
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-4">
-              <ImportTrades onImport={handleImportTrades} />
-              <div className="text-right">
+              <ImportTrades onImport={importTrades} />
+              <div className="text-right hidden sm:block">
                 <p className="text-xs text-muted-foreground">Saldo Actual</p>
                 <p className="font-mono font-bold text-lg text-foreground">
                   $
@@ -68,6 +66,15 @@ export function Dashboard({ initialTrades }: DashboardProps) {
                     : "0.00"}
                 </p>
               </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={signOut}
+                className="text-muted-foreground hover:text-foreground"
+                title="Cerrar sesión"
+              >
+                <LogOut className="h-5 w-5" />
+              </Button>
             </div>
           </div>
         </div>
@@ -134,7 +141,7 @@ export function Dashboard({ initialTrades }: DashboardProps) {
               <div className="p-8 text-center text-muted-foreground">
                 <BarChart3 className="h-12 w-12 mx-auto mb-4 opacity-50" />
                 <p>No hay operaciones registradas</p>
-                <p className="text-sm">Añade tu primera operación para comenzar</p>
+                <p className="text-sm">Importa tu primera operación con el botón "Importar Trades"</p>
               </div>
             ) : (
               trades.map((trade) => (

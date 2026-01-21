@@ -14,7 +14,84 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      trades: {
+        Row: {
+          contexto_1h: string | null
+          created_at: string
+          direccion: string
+          entrada_por: string | null
+          fecha_entrada: string
+          fecha_salida: string
+          id: string
+          instrumento: string
+          moneda: string
+          motivo_salida: string | null
+          notas: string | null
+          posicion_en_canal: string | null
+          resultado_pct_cuenta: number | null
+          resultado_usd: number
+          riesgo_pct_cuenta: number | null
+          saldo_antes: number
+          saldo_despues: number
+          stake_usd: number
+          stop_plan_usd: number | null
+          tf_principal: string | null
+          tipo_setup: string | null
+          tp_plan_usd: number | null
+          user_id: string
+        }
+        Insert: {
+          contexto_1h?: string | null
+          created_at?: string
+          direccion: string
+          entrada_por?: string | null
+          fecha_entrada: string
+          fecha_salida: string
+          id: string
+          instrumento: string
+          moneda?: string
+          motivo_salida?: string | null
+          notas?: string | null
+          posicion_en_canal?: string | null
+          resultado_pct_cuenta?: number | null
+          resultado_usd: number
+          riesgo_pct_cuenta?: number | null
+          saldo_antes: number
+          saldo_despues: number
+          stake_usd: number
+          stop_plan_usd?: number | null
+          tf_principal?: string | null
+          tipo_setup?: string | null
+          tp_plan_usd?: number | null
+          user_id: string
+        }
+        Update: {
+          contexto_1h?: string | null
+          created_at?: string
+          direccion?: string
+          entrada_por?: string | null
+          fecha_entrada?: string
+          fecha_salida?: string
+          id?: string
+          instrumento?: string
+          moneda?: string
+          motivo_salida?: string | null
+          notas?: string | null
+          posicion_en_canal?: string | null
+          resultado_pct_cuenta?: number | null
+          resultado_usd?: number
+          riesgo_pct_cuenta?: number | null
+          saldo_antes?: number
+          saldo_despues?: number
+          stake_usd?: number
+          stop_plan_usd?: number | null
+          tf_principal?: string | null
+          tipo_setup?: string | null
+          tp_plan_usd?: number | null
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
