@@ -22,42 +22,8 @@ interface ImportTradesProps {
   onImport: (trades: Trade[]) => void;
 }
 
-// Column headers mapping (Spanish names to Trade fields)
-const COLUMN_HEADERS = [
-  "id",
-  "fecha_entrada",
-  "fecha_salida",
-  "instrumento",
-  "moneda",
-  "direccion",
-  "stake_usd",
-  "resultado_usd",
-  "saldo_antes",
-  "saldo_despues",
-  "riesgo_pct_cuenta",
-  "resultado_pct_cuenta",
-  "tf_principal",
-  "contexto_1h",
-  "posicion_en_canal",
-  "tipo_setup",
-  "entrada_por",
-  "stop_plan_usd",
-  "tp_plan_usd",
-  "motivo_salida",
-  "notas",
-] as const;
-
-const REQUIRED_FIELDS = [
-  "id",
-  "fecha_entrada",
-  "fecha_salida",
-  "instrumento",
-  "direccion",
-  "stake_usd",
-  "resultado_usd",
-  "saldo_antes",
-  "saldo_despues",
-];
+// Expected columns from Deriv format
+const DERIV_HEADERS = ["type", "ref. id", "currency", "buy time", "stake", "sell time", "contract value", "total profit/loss"];
 
 export function ImportTrades({ onImport }: ImportTradesProps) {
   const [open, setOpen] = useState(false);
@@ -68,7 +34,7 @@ export function ImportTrades({ onImport }: ImportTradesProps) {
   const detectDelimiter = (text: string): string => {
     const firstLine = text.split("\n")[0];
     const tabCount = (firstLine.match(/\t/g) || []).length;
-    const commaCount = (firstLine.match(/,/g) || []).length;
+    const commaCount = (firstLine.match(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/g) || []).length;
     const semicolonCount = (firstLine.match(/;/g) || []).length;
 
     if (tabCount >= commaCount && tabCount >= semicolonCount) return "\t";
@@ -78,10 +44,36 @@ export function ImportTrades({ onImport }: ImportTradesProps) {
 
   const parseNumber = (value: string): number => {
     if (!value || value.trim() === "") return 0;
-    // Handle both comma and dot as decimal separators
-    const normalized = value.replace(",", ".").trim();
-    const parsed = parseFloat(normalized);
+    // Remove +/- prefix, commas, and handle decimal
+    const cleaned = value.replace(/[+,]/g, "").trim();
+    const parsed = parseFloat(cleaned);
     return isNaN(parsed) ? 0 : parsed;
+  };
+
+  const parseDerivDate = (dateStr: string): string => {
+    if (!dateStr || dateStr.trim() === "") return new Date().toISOString();
+    
+    try {
+      // Handle format: "21 Jan 2026 14:46:51 GMT"
+      const date = new Date(dateStr.trim());
+      if (!isNaN(date.getTime())) {
+        return date.toISOString();
+      }
+    } catch {
+      // Fall through to default
+    }
+    
+    return new Date().toISOString();
+  };
+
+  const isHeaderRow = (cells: string[]): boolean => {
+    const normalizedCells = cells.map(c => c.toLowerCase().trim());
+    return normalizedCells.some(cell => 
+      DERIV_HEADERS.includes(cell) || 
+      cell.includes("ref") || 
+      cell.includes("stake") ||
+      cell.includes("profit")
+    );
   };
 
   const parseTabularData = (input: string): Trade[] => {
@@ -91,56 +83,55 @@ export function ImportTrades({ onImport }: ImportTradesProps) {
     const delimiter = detectDelimiter(input);
     const trades: Trade[] = [];
 
-    // Check if first line is a header row
-    const firstLineCells = lines[0].split(delimiter);
-    const isHeader = firstLineCells.some(cell => 
-      COLUMN_HEADERS.includes(cell.trim().toLowerCase() as any) ||
-      cell.trim().toLowerCase() === "id"
-    );
-
-    const dataLines = isHeader ? lines.slice(1) : lines;
+    // Skip header row if detected
+    const firstLineCells = lines[0].split(delimiter).map(c => c.trim());
+    const hasHeader = isHeaderRow(firstLineCells);
+    const dataLines = hasHeader ? lines.slice(1) : lines;
 
     for (const line of dataLines) {
       const cells = line.split(delimiter).map(cell => cell.trim());
       
-      if (cells.length < 9) continue; // Need at least required fields
+      if (cells.length < 7) continue;
 
-      const trade: Partial<Trade> = {};
+      // Deriv format mapping:
+      // Type | Ref. ID | Currency | Buy time | Stake | Sell time | Contract value | Total profit/loss
+      const [type, refId, currency, buyTime, stake, sellTime, contractValue, profitLoss] = cells;
 
-      // Map cells to Trade fields based on position
-      COLUMN_HEADERS.forEach((field, index) => {
-        const value = cells[index] || "";
-        
-        switch (field) {
-          case "stake_usd":
-          case "resultado_usd":
-          case "saldo_antes":
-          case "saldo_despues":
-          case "riesgo_pct_cuenta":
-          case "resultado_pct_cuenta":
-          case "stop_plan_usd":
-          case "tp_plan_usd":
-            (trade as any)[field] = parseNumber(value);
-            break;
-          case "direccion":
-            (trade as any)[field] = value || "Compra";
-            break;
-          case "moneda":
-            (trade as any)[field] = value || "USD";
-            break;
-          default:
-            (trade as any)[field] = value;
-        }
-      });
+      const stakeNum = parseNumber(stake);
+      const resultadoUsd = parseNumber(profitLoss);
+      const contractValueNum = parseNumber(contractValue);
 
-      // Validate required fields
-      const hasRequiredFields = REQUIRED_FIELDS.every(field => {
-        const val = (trade as any)[field];
-        return val !== undefined && val !== null && val !== "";
-      });
+      // Calculate saldo_antes and saldo_despues
+      const saldoAntes = contractValueNum - resultadoUsd;
+      const saldoDespues = contractValueNum;
 
-      if (hasRequiredFields) {
-        trades.push(trade as Trade);
+      const trade: Trade = {
+        id: refId || `trade_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        fecha_entrada: parseDerivDate(buyTime),
+        fecha_salida: parseDerivDate(sellTime),
+        instrumento: type || "Unknown",
+        moneda: currency || "USD",
+        direccion: "Compra",
+        stake_usd: stakeNum,
+        resultado_usd: resultadoUsd,
+        saldo_antes: saldoAntes,
+        saldo_despues: saldoDespues,
+        riesgo_pct_cuenta: 0,
+        resultado_pct_cuenta: saldoAntes > 0 ? (resultadoUsd / saldoAntes) * 100 : 0,
+        tf_principal: "",
+        contexto_1h: "",
+        posicion_en_canal: "",
+        tipo_setup: "",
+        entrada_por: "",
+        stop_plan_usd: 0,
+        tp_plan_usd: 0,
+        motivo_salida: "",
+        notas: "",
+      };
+
+      // Only add if we have the essential data
+      if (refId && stakeNum > 0) {
+        trades.push(trade);
       }
     }
 
@@ -153,26 +144,20 @@ export function ImportTrades({ onImport }: ImportTradesProps) {
 
     if (!input.trim()) return;
 
+    // Try JSON first (backwards compatibility)
     try {
-      // Try JSON first
       const parsed = JSON.parse(input);
       const trades: any[] = Array.isArray(parsed) ? parsed : parsed.trades;
 
-      if (Array.isArray(trades)) {
-        const validTrades = trades.filter(trade => 
-          REQUIRED_FIELDS.every(field => trade.hasOwnProperty(field))
-        );
-        setPreview(validTrades);
-        if (validTrades.length < trades.length) {
-          setError(`${trades.length - validTrades.length} trade(s) con campos faltantes`);
-        }
+      if (Array.isArray(trades) && trades.length > 0) {
+        setPreview(trades);
         return;
       }
     } catch {
-      // Not JSON, try tabular format
+      // Not JSON, continue to tabular parsing
     }
 
-    // Parse as tabular data (TSV/CSV)
+    // Parse as tabular data (Deriv format)
     const trades = parseTabularData(input);
     
     if (trades.length === 0) {
@@ -233,10 +218,8 @@ export function ImportTrades({ onImport }: ImportTradesProps) {
                 </TooltipTrigger>
                 <TooltipContent side="bottom" className="max-w-sm">
                   <p className="text-xs">
-                    Copia datos desde Excel, Google Sheets o cualquier tabla. 
-                    El orden de columnas debe ser: id, fecha_entrada, fecha_salida, 
-                    instrumento, moneda, direccion, stake_usd, resultado_usd, 
-                    saldo_antes, saldo_despues, ...
+                    Copia datos directamente desde tu historial de Deriv.
+                    Formato: Type, Ref. ID, Currency, Buy time, Stake, Sell time, Contract value, Total profit/loss
                   </p>
                 </TooltipContent>
               </Tooltip>
@@ -272,15 +255,11 @@ export function ImportTrades({ onImport }: ImportTradesProps) {
               setTextInput(e.target.value);
               parseInput(e.target.value);
             }}
-            placeholder={`Pega aquí tus datos copiados desde Excel o Google Sheets.
+            placeholder={`Pega aquí tus trades copiados desde Deriv.
 
-Formato esperado (separado por tabulaciones o comas):
-id	fecha_entrada	fecha_salida	instrumento	moneda	direccion	stake_usd	resultado_usd	saldo_antes	saldo_despues	...
-
-Ejemplo:
-123456	2026-01-20T16:00:00Z	2026-01-20T16:30:00Z	Boom 1000	USD	Venta	1000	200	10000	10200	...
-
-También acepta formato JSON.`}
+Formato esperado:
+Type	Ref. ID	Currency	Buy time	Stake	Sell time	Contract value	Total profit/loss
+x300	606136916768	USD	21 Jan 2026 14:46:51 GMT	1,000.00	21 Jan 2026 14:51:35 GMT	1,269.04	+269.04`}
             className="h-48 font-mono text-sm bg-background border-border resize-none"
           />
 
