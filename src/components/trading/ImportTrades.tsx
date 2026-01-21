@@ -9,33 +9,142 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { ClipboardPaste, Plus, Check, AlertCircle, X } from "lucide-react";
+import { ClipboardPaste, Plus, Check, AlertCircle, X, HelpCircle } from "lucide-react";
 import { toast } from "sonner";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface ImportTradesProps {
   onImport: (trades: Trade[]) => void;
 }
 
+// Column headers mapping (Spanish names to Trade fields)
+const COLUMN_HEADERS = [
+  "id",
+  "fecha_entrada",
+  "fecha_salida",
+  "instrumento",
+  "moneda",
+  "direccion",
+  "stake_usd",
+  "resultado_usd",
+  "saldo_antes",
+  "saldo_despues",
+  "riesgo_pct_cuenta",
+  "resultado_pct_cuenta",
+  "tf_principal",
+  "contexto_1h",
+  "posicion_en_canal",
+  "tipo_setup",
+  "entrada_por",
+  "stop_plan_usd",
+  "tp_plan_usd",
+  "motivo_salida",
+  "notas",
+] as const;
+
+const REQUIRED_FIELDS = [
+  "id",
+  "fecha_entrada",
+  "fecha_salida",
+  "instrumento",
+  "direccion",
+  "stake_usd",
+  "resultado_usd",
+  "saldo_antes",
+  "saldo_despues",
+];
+
 export function ImportTrades({ onImport }: ImportTradesProps) {
   const [open, setOpen] = useState(false);
-  const [jsonInput, setJsonInput] = useState("");
+  const [textInput, setTextInput] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<Trade[]>([]);
 
-  const validateTrade = (trade: any): trade is Trade => {
-    const requiredFields = [
-      "id",
-      "fecha_entrada",
-      "fecha_salida",
-      "instrumento",
-      "direccion",
-      "stake_usd",
-      "resultado_usd",
-      "saldo_antes",
-      "saldo_despues",
-    ];
+  const detectDelimiter = (text: string): string => {
+    const firstLine = text.split("\n")[0];
+    const tabCount = (firstLine.match(/\t/g) || []).length;
+    const commaCount = (firstLine.match(/,/g) || []).length;
+    const semicolonCount = (firstLine.match(/;/g) || []).length;
 
-    return requiredFields.every((field) => trade.hasOwnProperty(field));
+    if (tabCount >= commaCount && tabCount >= semicolonCount) return "\t";
+    if (semicolonCount >= commaCount) return ";";
+    return ",";
+  };
+
+  const parseNumber = (value: string): number => {
+    if (!value || value.trim() === "") return 0;
+    // Handle both comma and dot as decimal separators
+    const normalized = value.replace(",", ".").trim();
+    const parsed = parseFloat(normalized);
+    return isNaN(parsed) ? 0 : parsed;
+  };
+
+  const parseTabularData = (input: string): Trade[] => {
+    const lines = input.trim().split("\n").filter(line => line.trim());
+    if (lines.length === 0) return [];
+
+    const delimiter = detectDelimiter(input);
+    const trades: Trade[] = [];
+
+    // Check if first line is a header row
+    const firstLineCells = lines[0].split(delimiter);
+    const isHeader = firstLineCells.some(cell => 
+      COLUMN_HEADERS.includes(cell.trim().toLowerCase() as any) ||
+      cell.trim().toLowerCase() === "id"
+    );
+
+    const dataLines = isHeader ? lines.slice(1) : lines;
+
+    for (const line of dataLines) {
+      const cells = line.split(delimiter).map(cell => cell.trim());
+      
+      if (cells.length < 9) continue; // Need at least required fields
+
+      const trade: Partial<Trade> = {};
+
+      // Map cells to Trade fields based on position
+      COLUMN_HEADERS.forEach((field, index) => {
+        const value = cells[index] || "";
+        
+        switch (field) {
+          case "stake_usd":
+          case "resultado_usd":
+          case "saldo_antes":
+          case "saldo_despues":
+          case "riesgo_pct_cuenta":
+          case "resultado_pct_cuenta":
+          case "stop_plan_usd":
+          case "tp_plan_usd":
+            (trade as any)[field] = parseNumber(value);
+            break;
+          case "direccion":
+            (trade as any)[field] = value || "Compra";
+            break;
+          case "moneda":
+            (trade as any)[field] = value || "USD";
+            break;
+          default:
+            (trade as any)[field] = value;
+        }
+      });
+
+      // Validate required fields
+      const hasRequiredFields = REQUIRED_FIELDS.every(field => {
+        const val = (trade as any)[field];
+        return val !== undefined && val !== null && val !== "";
+      });
+
+      if (hasRequiredFields) {
+        trades.push(trade as Trade);
+      }
+    }
+
+    return trades;
   };
 
   const parseInput = (input: string) => {
@@ -45,48 +154,41 @@ export function ImportTrades({ onImport }: ImportTradesProps) {
     if (!input.trim()) return;
 
     try {
-      let parsed = JSON.parse(input);
+      // Try JSON first
+      const parsed = JSON.parse(input);
+      const trades: any[] = Array.isArray(parsed) ? parsed : parsed.trades;
 
-      // Handle both { trades: [...] } and [...] formats
-      let trades: any[] = Array.isArray(parsed) ? parsed : parsed.trades;
-
-      if (!Array.isArray(trades)) {
-        throw new Error("El JSON debe contener un array de trades");
-      }
-
-      const validTrades: Trade[] = [];
-      const invalidIndexes: number[] = [];
-
-      trades.forEach((trade, index) => {
-        if (validateTrade(trade)) {
-          validTrades.push(trade);
-        } else {
-          invalidIndexes.push(index + 1);
-        }
-      });
-
-      if (invalidIndexes.length > 0) {
-        setError(
-          `Trades con formato inválido: ${invalidIndexes.join(", ")}. Verifica los campos requeridos.`
+      if (Array.isArray(trades)) {
+        const validTrades = trades.filter(trade => 
+          REQUIRED_FIELDS.every(field => trade.hasOwnProperty(field))
         );
+        setPreview(validTrades);
+        if (validTrades.length < trades.length) {
+          setError(`${trades.length - validTrades.length} trade(s) con campos faltantes`);
+        }
+        return;
       }
-
-      setPreview(validTrades);
-    } catch (e) {
-      if (e instanceof SyntaxError) {
-        setError("JSON inválido. Verifica la sintaxis.");
-      } else if (e instanceof Error) {
-        setError(e.message);
-      }
+    } catch {
+      // Not JSON, try tabular format
     }
+
+    // Parse as tabular data (TSV/CSV)
+    const trades = parseTabularData(input);
+    
+    if (trades.length === 0) {
+      setError("No se encontraron trades válidos. Verifica el formato de los datos.");
+      return;
+    }
+
+    setPreview(trades);
   };
 
   const handlePaste = async () => {
     try {
       const text = await navigator.clipboard.readText();
-      setJsonInput(text);
+      setTextInput(text);
       parseInput(text);
-    } catch (e) {
+    } catch {
       toast.error("No se pudo acceder al portapapeles");
     }
   };
@@ -99,14 +201,14 @@ export function ImportTrades({ onImport }: ImportTradesProps) {
 
     onImport(preview);
     toast.success(`${preview.length} trade(s) importado(s) correctamente`);
-    setJsonInput("");
+    setTextInput("");
     setPreview([]);
     setError(null);
     setOpen(false);
   };
 
   const handleClear = () => {
-    setJsonInput("");
+    setTextInput("");
     setPreview([]);
     setError(null);
   };
@@ -124,6 +226,21 @@ export function ImportTrades({ onImport }: ImportTradesProps) {
           <DialogTitle className="flex items-center gap-2 text-foreground">
             <ClipboardPaste className="h-5 w-5 text-primary" />
             Importar Operaciones
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-sm">
+                  <p className="text-xs">
+                    Copia datos desde Excel, Google Sheets o cualquier tabla. 
+                    El orden de columnas debe ser: id, fecha_entrada, fecha_salida, 
+                    instrumento, moneda, direccion, stake_usd, resultado_usd, 
+                    saldo_antes, saldo_despues, ...
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </DialogTitle>
         </DialogHeader>
 
@@ -137,7 +254,7 @@ export function ImportTrades({ onImport }: ImportTradesProps) {
               <ClipboardPaste className="h-4 w-4" />
               Pegar desde Portapapeles
             </Button>
-            {jsonInput && (
+            {textInput && (
               <Button
                 variant="ghost"
                 onClick={handleClear}
@@ -150,30 +267,20 @@ export function ImportTrades({ onImport }: ImportTradesProps) {
           </div>
 
           <Textarea
-            value={jsonInput}
+            value={textInput}
             onChange={(e) => {
-              setJsonInput(e.target.value);
+              setTextInput(e.target.value);
               parseInput(e.target.value);
             }}
-            placeholder={`Pega aquí tu JSON con el formato:
-{
-  "trades": [
-    {
-      "id": "123456",
-      "fecha_entrada": "2026-01-20T16:00:00Z",
-      "fecha_salida": "2026-01-20T16:30:00Z",
-      "instrumento": "Boom 1000",
-      "direccion": "Venta",
-      "stake_usd": 1000,
-      "resultado_usd": 200,
-      "saldo_antes": 10000,
-      "saldo_despues": 10200,
-      ...
-    }
-  ]
-}
+            placeholder={`Pega aquí tus datos copiados desde Excel o Google Sheets.
 
-También puedes pegar solo el array: [{ ... }, { ... }]`}
+Formato esperado (separado por tabulaciones o comas):
+id	fecha_entrada	fecha_salida	instrumento	moneda	direccion	stake_usd	resultado_usd	saldo_antes	saldo_despues	...
+
+Ejemplo:
+123456	2026-01-20T16:00:00Z	2026-01-20T16:30:00Z	Boom 1000	USD	Venta	1000	200	10000	10200	...
+
+También acepta formato JSON.`}
             className="h-48 font-mono text-sm bg-background border-border resize-none"
           />
 
