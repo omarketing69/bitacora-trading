@@ -71,9 +71,10 @@ function LoginForm({
   isSubmitting: boolean;
   setIsSubmitting: (v: boolean) => void;
 }) {
-  const { signIn } = useAuth();
+  const { signIn, resetPassword } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showReset, setShowReset] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -95,6 +96,64 @@ function LoginForm({
     }
   };
 
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!email || !email.includes("@")) {
+      toast.error("Ingresa un email válido");
+      return;
+    }
+
+    setIsSubmitting(true);
+    const { error } = await resetPassword(email);
+    setIsSubmitting(false);
+
+    if (error) {
+      toast.error("Error al enviar el correo de recuperación");
+    } else {
+      toast.success("¡Revisa tu correo! Te enviamos un enlace para restablecer tu contraseña.");
+      setShowReset(false);
+    }
+  };
+
+  if (showReset) {
+    return (
+      <form onSubmit={handleResetPassword} className="space-y-4">
+        <div className="text-center mb-4">
+          <h3 className="font-semibold">Recuperar Contraseña</h3>
+          <p className="text-sm text-muted-foreground">Te enviaremos un enlace a tu correo</p>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="reset-email">Email</Label>
+          <div className="relative">
+            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              id="reset-email"
+              type="email"
+              placeholder="tu@email.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="pl-10 bg-background border-border"
+              required
+            />
+          </div>
+        </div>
+        <Button type="submit" className="w-full bg-primary hover:bg-primary/80" disabled={isSubmitting}>
+          {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+          Enviar Enlace
+        </Button>
+        <Button 
+          type="button" 
+          variant="ghost" 
+          className="w-full" 
+          onClick={() => setShowReset(false)}
+        >
+          Volver al Login
+        </Button>
+      </form>
+    );
+  }
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
@@ -113,7 +172,16 @@ function LoginForm({
         </div>
       </div>
       <div className="space-y-2">
-        <Label htmlFor="login-password">Contraseña</Label>
+        <div className="flex justify-between items-center">
+          <Label htmlFor="login-password">Contraseña</Label>
+          <button
+            type="button"
+            onClick={() => setShowReset(true)}
+            className="text-xs text-primary hover:underline"
+          >
+            ¿Olvidaste tu contraseña?
+          </button>
+        </div>
         <div className="relative">
           <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
