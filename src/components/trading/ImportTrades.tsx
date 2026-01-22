@@ -88,36 +88,69 @@ export function ImportTrades({ onImport }: ImportTradesProps) {
     const hasHeader = isHeaderRow(firstLineCells);
     const dataLines = hasHeader ? lines.slice(1) : lines;
 
+    // Parse all trades first
+    const parsedData: Array<{
+      refId: string;
+      type: string;
+      currency: string;
+      buyTime: string;
+      sellTime: string;
+      stake: number;
+      resultado: number;
+    }> = [];
+
     for (const line of dataLines) {
       const cells = line.split(delimiter).map(cell => cell.trim());
       
-      if (cells.length < 7) continue;
+      if (cells.length < 8) continue;
 
       // Deriv format mapping:
       // Type | Ref. ID | Currency | Buy time | Stake | Sell time | Contract value | Total profit/loss
-      const [type, refId, currency, buyTime, stake, sellTime, contractValue, profitLoss] = cells;
+      const [type, refId, currency, buyTime, stake, sellTime, , profitLoss] = cells;
 
       const stakeNum = parseNumber(stake);
       const resultadoUsd = parseNumber(profitLoss);
-      const contractValueNum = parseNumber(contractValue);
 
-      // Calculate saldo_antes and saldo_despues
-      const saldoAntes = contractValueNum - resultadoUsd;
-      const saldoDespues = contractValueNum;
+      if (refId && stakeNum > 0) {
+        parsedData.push({
+          refId,
+          type,
+          currency,
+          buyTime,
+          sellTime,
+          stake: stakeNum,
+          resultado: resultadoUsd,
+        });
+      }
+    }
+
+    // Sort by buy time (oldest first) to calculate running balance
+    parsedData.sort((a, b) => 
+      new Date(parseDerivDate(a.buyTime)).getTime() - new Date(parseDerivDate(b.buyTime)).getTime()
+    );
+
+    // Create trades with running balance calculation
+    // Start with stake of first trade as initial balance estimate
+    let runningBalance = parsedData.length > 0 ? parsedData[0].stake * 2 : 0;
+
+    for (const data of parsedData) {
+      const saldoAntes = runningBalance;
+      const saldoDespues = runningBalance + data.resultado;
+      runningBalance = saldoDespues;
 
       const trade: Trade = {
-        id: refId || `trade_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        fecha_entrada: parseDerivDate(buyTime),
-        fecha_salida: parseDerivDate(sellTime),
-        instrumento: type || "Unknown",
-        moneda: currency || "USD",
-        direccion: "Compra",
-        stake_usd: stakeNum,
-        resultado_usd: resultadoUsd,
+        id: data.refId,
+        fecha_entrada: parseDerivDate(data.buyTime),
+        fecha_salida: parseDerivDate(data.sellTime),
+        instrumento: data.type || "Unknown",
+        moneda: data.currency || "USD",
+        direccion: data.resultado >= 0 ? "Compra" : "Compra",
+        stake_usd: data.stake,
+        resultado_usd: data.resultado,
         saldo_antes: saldoAntes,
         saldo_despues: saldoDespues,
-        riesgo_pct_cuenta: 0,
-        resultado_pct_cuenta: saldoAntes > 0 ? (resultadoUsd / saldoAntes) * 100 : 0,
+        riesgo_pct_cuenta: saldoAntes > 0 ? (data.stake / saldoAntes) * 100 : 0,
+        resultado_pct_cuenta: saldoAntes > 0 ? (data.resultado / saldoAntes) * 100 : 0,
         tf_principal: "",
         contexto_1h: "",
         posicion_en_canal: "",
@@ -129,10 +162,7 @@ export function ImportTrades({ onImport }: ImportTradesProps) {
         notas: "",
       };
 
-      // Only add if we have the essential data
-      if (refId && stakeNum > 0) {
-        trades.push(trade);
-      }
+      trades.push(trade);
     }
 
     return trades;
