@@ -76,20 +76,60 @@ export function ImportTrades({ onImport }: ImportTradesProps) {
     );
   };
 
+  const parseVerticalFormat = (lines: string[]): Trade[] => {
+    // Deriv vertical format: each field on its own line
+    // Pattern: Type, Ref. ID, Currency, Buy time, Stake, Sell time, Contract value, Total profit/loss
+    const FIELDS_PER_TRADE = 8;
+    const trades: Trade[] = [];
+    
+    // Remove header lines if present
+    let dataLines = [...lines];
+    const firstLine = dataLines[0]?.toLowerCase().trim();
+    if (firstLine === "type" || firstLine.includes("ref")) {
+      // Skip header block (8 lines)
+      dataLines = dataLines.slice(FIELDS_PER_TRADE);
+    }
+
+    // Process trades in chunks of 8 fields
+    for (let i = 0; i + FIELDS_PER_TRADE <= dataLines.length; i += FIELDS_PER_TRADE) {
+      const chunk = dataLines.slice(i, i + FIELDS_PER_TRADE).map(l => l.trim());
+      
+      const [type, refId, currency, buyTime, stake, sellTime, , profitLoss] = chunk;
+      
+      const stakeNum = parseNumber(stake);
+      const resultadoUsd = parseNumber(profitLoss);
+
+      if (refId && stakeNum > 0) {
+        trades.push({
+          refId,
+          type,
+          currency,
+          buyTime,
+          sellTime,
+          stake: stakeNum,
+          resultado: resultadoUsd,
+        } as any);
+      }
+    }
+
+    return trades;
+  };
+
   const parseTabularData = (input: string): Trade[] => {
     const lines = input.trim().split("\n").filter(line => line.trim());
     if (lines.length === 0) return [];
 
     const delimiter = detectDelimiter(input);
-    const trades: Trade[] = [];
-
-    // Skip header row if detected
     const firstLineCells = lines[0].split(delimiter).map(c => c.trim());
-    const hasHeader = isHeaderRow(firstLineCells);
-    const dataLines = hasHeader ? lines.slice(1) : lines;
+    
+    // Check if it's vertical format (one field per line)
+    // If first line has only one cell and it looks like a type/header
+    const isVerticalFormat = firstLineCells.length === 1 && 
+      (firstLineCells[0].toLowerCase() === "type" || 
+       firstLineCells[0].match(/^x\d+$/i) ||
+       lines.length >= 8);
 
-    // Parse all trades first
-    const parsedData: Array<{
+    let parsedData: Array<{
       refId: string;
       type: string;
       currency: string;
@@ -99,52 +139,88 @@ export function ImportTrades({ onImport }: ImportTradesProps) {
       resultado: number;
     }> = [];
 
-    for (const line of dataLines) {
-      const cells = line.split(delimiter).map(cell => cell.trim());
+    if (isVerticalFormat) {
+      // Parse vertical format
+      const FIELDS_PER_TRADE = 8;
+      let dataLines = [...lines];
       
-      if (cells.length < 8) continue;
+      // Check if first block is headers
+      const firstField = dataLines[0]?.toLowerCase().trim();
+      if (firstField === "type") {
+        dataLines = dataLines.slice(FIELDS_PER_TRADE);
+      }
 
-      // Deriv format mapping:
-      // Type | Ref. ID | Currency | Buy time | Stake | Sell time | Contract value | Total profit/loss
-      const [type, refId, currency, buyTime, stake, sellTime, , profitLoss] = cells;
+      for (let i = 0; i + FIELDS_PER_TRADE <= dataLines.length; i += FIELDS_PER_TRADE) {
+        const chunk = dataLines.slice(i, i + FIELDS_PER_TRADE).map(l => l.trim());
+        const [type, refId, currency, buyTime, stake, sellTime, , profitLoss] = chunk;
+        
+        const stakeNum = parseNumber(stake);
+        const resultadoUsd = parseNumber(profitLoss);
 
-      const stakeNum = parseNumber(stake);
-      const resultadoUsd = parseNumber(profitLoss);
+        if (refId && stakeNum > 0) {
+          parsedData.push({
+            refId,
+            type,
+            currency,
+            buyTime,
+            sellTime,
+            stake: stakeNum,
+            resultado: resultadoUsd,
+          });
+        }
+      }
+    } else {
+      // Parse horizontal/tabular format
+      const hasHeader = isHeaderRow(firstLineCells);
+      const dataLines = hasHeader ? lines.slice(1) : lines;
 
-      if (refId && stakeNum > 0) {
-        parsedData.push({
-          refId,
-          type,
-          currency,
-          buyTime,
-          sellTime,
-          stake: stakeNum,
-          resultado: resultadoUsd,
-        });
+      for (const line of dataLines) {
+        const cells = line.split(delimiter).map(cell => cell.trim());
+        
+        if (cells.length < 8) continue;
+
+        const [type, refId, currency, buyTime, stake, sellTime, , profitLoss] = cells;
+
+        const stakeNum = parseNumber(stake);
+        const resultadoUsd = parseNumber(profitLoss);
+
+        if (refId && stakeNum > 0) {
+          parsedData.push({
+            refId,
+            type,
+            currency,
+            buyTime,
+            sellTime,
+            stake: stakeNum,
+            resultado: resultadoUsd,
+          });
+        }
       }
     }
 
-    // Sort by buy time (oldest first) to calculate running balance
+    if (parsedData.length === 0) return [];
+
+    // Sort by buy time (oldest first)
     parsedData.sort((a, b) => 
       new Date(parseDerivDate(a.buyTime)).getTime() - new Date(parseDerivDate(b.buyTime)).getTime()
     );
 
-    // Create trades with running balance calculation
-    // Start with stake of first trade as initial balance estimate
-    let runningBalance = parsedData.length > 0 ? parsedData[0].stake * 2 : 0;
+    // Create trades with running balance
+    let runningBalance = parsedData[0].stake * 2;
+    const trades: Trade[] = [];
 
     for (const data of parsedData) {
       const saldoAntes = runningBalance;
       const saldoDespues = runningBalance + data.resultado;
       runningBalance = saldoDespues;
 
-      const trade: Trade = {
+      trades.push({
         id: data.refId,
         fecha_entrada: parseDerivDate(data.buyTime),
         fecha_salida: parseDerivDate(data.sellTime),
         instrumento: data.type || "Unknown",
         moneda: data.currency || "USD",
-        direccion: data.resultado >= 0 ? "Compra" : "Compra",
+        direccion: "Compra",
         stake_usd: data.stake,
         resultado_usd: data.resultado,
         saldo_antes: saldoAntes,
@@ -160,9 +236,7 @@ export function ImportTrades({ onImport }: ImportTradesProps) {
         tp_plan_usd: 0,
         motivo_salida: "",
         notas: "",
-      };
-
-      trades.push(trade);
+      });
     }
 
     return trades;
