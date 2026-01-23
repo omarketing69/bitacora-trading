@@ -5,6 +5,7 @@ import { StatCard } from "./StatCard";
 import { TradeRow } from "./TradeRow";
 import { TradeDetail } from "./TradeDetail";
 import { ImportTrades } from "./ImportTrades";
+import { ChangePassword } from "@/components/ChangePassword";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTrades } from "@/hooks/useTrades";
 import {
@@ -66,6 +67,7 @@ export function Dashboard() {
                     : "0.00"}
                 </p>
               </div>
+              <ChangePassword />
               <Button
                 variant="ghost"
                 size="icon"
