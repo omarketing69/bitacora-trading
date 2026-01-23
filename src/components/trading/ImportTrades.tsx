@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Trade } from "@/types/trade";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -9,7 +11,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { ClipboardPaste, Plus, Check, AlertCircle, X, HelpCircle } from "lucide-react";
+import { ClipboardPaste, Plus, Check, AlertCircle, X, HelpCircle, DollarSign } from "lucide-react";
 import { toast } from "sonner";
 import {
   Tooltip,
@@ -30,6 +32,7 @@ export function ImportTrades({ onImport }: ImportTradesProps) {
   const [textInput, setTextInput] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<Trade[]>([]);
+  const [initialBalance, setInitialBalance] = useState<string>("");
 
   const detectDelimiter = (text: string): string => {
     const firstLine = text.split("\n")[0];
@@ -206,7 +209,11 @@ export function ImportTrades({ onImport }: ImportTradesProps) {
     );
 
     // Create trades with running balance
-    let runningBalance = parsedData[0].stake * 2;
+    // Use initial balance if provided, otherwise estimate from first stake
+    const startingBalance = initialBalance && parseFloat(initialBalance) > 0 
+      ? parseFloat(initialBalance) 
+      : parsedData[0].stake * 2;
+    let runningBalance = startingBalance;
     const trades: Trade[] = [];
 
     for (const data of parsedData) {
@@ -272,6 +279,13 @@ export function ImportTrades({ onImport }: ImportTradesProps) {
     setPreview(trades);
   };
 
+  // Re-parse when initial balance changes
+  useEffect(() => {
+    if (textInput.trim()) {
+      parseInput(textInput);
+    }
+  }, [initialBalance]);
+
   const handlePaste = async () => {
     try {
       const text = await navigator.clipboard.readText();
@@ -300,6 +314,7 @@ export function ImportTrades({ onImport }: ImportTradesProps) {
     setTextInput("");
     setPreview([]);
     setError(null);
+    setInitialBalance("");
   };
 
   return (
@@ -332,6 +347,40 @@ export function ImportTrades({ onImport }: ImportTradesProps) {
         </DialogHeader>
 
         <div className="space-y-4">
+          {/* Initial Balance Input */}
+          <div className="space-y-2">
+            <Label htmlFor="initialBalance" className="flex items-center gap-2 text-sm font-medium">
+              <DollarSign className="h-4 w-4 text-primary" />
+              Saldo Inicial (opcional)
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent side="right" className="max-w-xs">
+                    <p className="text-xs">
+                      Ingresa el saldo de tu cuenta antes del primer trade. 
+                      Si no lo especificas, se estimará automáticamente.
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </Label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
+              <Input
+                id="initialBalance"
+                type="number"
+                min="0"
+                step="0.01"
+                value={initialBalance}
+                onChange={(e) => setInitialBalance(e.target.value)}
+                placeholder="Ej: 5000.00"
+                className="pl-7 bg-background border-border"
+              />
+            </div>
+          </div>
+
           <div className="flex gap-2">
             <Button
               variant="outline"
