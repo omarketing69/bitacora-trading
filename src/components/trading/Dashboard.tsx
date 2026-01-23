@@ -25,7 +25,7 @@ import { Button } from "@/components/ui/button";
 
 export function Dashboard() {
   const { user, signOut } = useAuth();
-  const { trades, loading, importTrades } = useTrades();
+  const { trades, loading, importTrades, updateTrade } = useTrades();
   const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null);
   const stats = calculateTradeStats(trades);
 
@@ -163,6 +163,7 @@ export function Dashboard() {
         trade={selectedTrade}
         open={!!selectedTrade}
         onClose={() => setSelectedTrade(null)}
+        onUpdate={updateTrade}
       />
     </div>
   );

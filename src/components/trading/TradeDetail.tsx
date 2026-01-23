@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { Trade } from "@/types/trade";
 import {
   formatCurrency,
@@ -15,6 +16,9 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -24,18 +28,65 @@ import {
   TrendingDown,
   TrendingUp,
   FileText,
+  Pencil,
+  Check,
+  X,
 } from "lucide-react";
 
 interface TradeDetailProps {
   trade: Trade | null;
   open: boolean;
   onClose: () => void;
+  onUpdate?: (tradeId: string, updates: Partial<Trade>) => Promise<boolean>;
 }
 
-export function TradeDetail({ trade, open, onClose }: TradeDetailProps) {
+export function TradeDetail({ trade, open, onClose, onUpdate }: TradeDetailProps) {
+  const [isEditingMotivo, setIsEditingMotivo] = useState(false);
+  const [isEditingNotas, setIsEditingNotas] = useState(false);
+  const [motivoSalida, setMotivoSalida] = useState("");
+  const [notas, setNotas] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    if (trade) {
+      setMotivoSalida(trade.motivo_salida || "");
+      setNotas(trade.notas || "");
+    }
+  }, [trade]);
+
   if (!trade) return null;
 
   const isProfit = trade.resultado_usd > 0;
+
+  const handleSaveMotivo = async () => {
+    if (!onUpdate) return;
+    setIsSaving(true);
+    const success = await onUpdate(trade.id, { motivo_salida: motivoSalida });
+    setIsSaving(false);
+    if (success) {
+      setIsEditingMotivo(false);
+    }
+  };
+
+  const handleSaveNotas = async () => {
+    if (!onUpdate) return;
+    setIsSaving(true);
+    const success = await onUpdate(trade.id, { notas });
+    setIsSaving(false);
+    if (success) {
+      setIsEditingNotas(false);
+    }
+  };
+
+  const handleCancelMotivo = () => {
+    setMotivoSalida(trade.motivo_salida || "");
+    setIsEditingMotivo(false);
+  };
+
+  const handleCancelNotas = () => {
+    setNotas(trade.notas || "");
+    setIsEditingNotas(false);
+  };
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -212,43 +263,129 @@ export function TradeDetail({ trade, open, onClose }: TradeDetailProps) {
 
           {/* Exit Reason */}
           <div className="stat-card">
-            <div className="flex items-center gap-2 mb-2">
-              {isProfit ? (
-                <TrendingUp className="h-4 w-4 profit-text" />
-              ) : (
-                <TrendingDown className="h-4 w-4 loss-text" />
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                {isProfit ? (
+                  <TrendingUp className="h-4 w-4 profit-text" />
+                ) : (
+                  <TrendingDown className="h-4 w-4 loss-text" />
+                )}
+                <p className="text-xs text-muted-foreground uppercase tracking-wider">
+                  Motivo de Salida
+                </p>
+              </div>
+              {onUpdate && !isEditingMotivo && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsEditingMotivo(true)}
+                  className="h-6 w-6 p-0"
+                >
+                  <Pencil className="h-3 w-3" />
+                </Button>
               )}
-              <p className="text-xs text-muted-foreground uppercase tracking-wider">
-                Motivo de Salida
-              </p>
             </div>
-            <Badge
-              variant="outline"
-              className={cn(
-                "font-mono",
-                isProfit
-                  ? "border-success/50 text-success"
-                  : "border-destructive/50 text-destructive"
-              )}
-            >
-              {trade.motivo_salida}
-            </Badge>
+            {isEditingMotivo ? (
+              <div className="flex items-center gap-2">
+                <Input
+                  value={motivoSalida}
+                  onChange={(e) => setMotivoSalida(e.target.value)}
+                  placeholder="Motivo de salida..."
+                  className="h-8 text-sm"
+                  disabled={isSaving}
+                />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleSaveMotivo}
+                  disabled={isSaving}
+                  className="h-8 w-8 p-0 text-success hover:text-success"
+                >
+                  <Check className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleCancelMotivo}
+                  disabled={isSaving}
+                  className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <Badge
+                variant="outline"
+                className={cn(
+                  "font-mono",
+                  isProfit
+                    ? "border-success/50 text-success"
+                    : "border-destructive/50 text-destructive"
+                )}
+              >
+                {trade.motivo_salida || "Sin especificar"}
+              </Badge>
+            )}
           </div>
 
           {/* Notes */}
-          {trade.notas && (
-            <div className="stat-card">
-              <div className="flex items-center gap-2 mb-2">
+          <div className="stat-card">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
                 <FileText className="h-4 w-4 text-muted-foreground" />
                 <p className="text-xs text-muted-foreground uppercase tracking-wider">
                   Notas
                 </p>
               </div>
-              <p className="text-sm text-foreground leading-relaxed">
-                {trade.notas}
-              </p>
+              {onUpdate && !isEditingNotas && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsEditingNotas(true)}
+                  className="h-6 w-6 p-0"
+                >
+                  <Pencil className="h-3 w-3" />
+                </Button>
+              )}
             </div>
-          )}
+            {isEditingNotas ? (
+              <div className="space-y-2">
+                <Textarea
+                  value={notas}
+                  onChange={(e) => setNotas(e.target.value)}
+                  placeholder="Notas sobre el trade..."
+                  className="text-sm min-h-[80px]"
+                  disabled={isSaving}
+                />
+                <div className="flex justify-end gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleCancelNotas}
+                    disabled={isSaving}
+                    className="h-8 text-destructive hover:text-destructive"
+                  >
+                    <X className="h-4 w-4 mr-1" />
+                    Cancelar
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleSaveNotas}
+                    disabled={isSaving}
+                    className="h-8 text-success hover:text-success"
+                  >
+                    <Check className="h-4 w-4 mr-1" />
+                    Guardar
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-foreground leading-relaxed">
+                {trade.notas || "Sin notas"}
+              </p>
+            )}
+          </div>
         </div>
       </DialogContent>
     </Dialog>

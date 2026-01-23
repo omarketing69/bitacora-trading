@@ -119,5 +119,30 @@ export function useTrades() {
     }
   };
 
-  return { trades, loading, importTrades, deleteTrade, refetch: fetchTrades };
+  const updateTrade = async (tradeId: string, updates: Partial<Trade>) => {
+    if (!user) {
+      toast.error("Debes iniciar sesión para editar trades");
+      return false;
+    }
+
+    const { error } = await supabase
+      .from("trades")
+      .update({
+        motivo_salida: updates.motivo_salida ?? null,
+        notas: updates.notas ?? null,
+      })
+      .eq("id", tradeId);
+
+    if (error) {
+      console.error("Error updating trade:", error);
+      toast.error("Error al actualizar operación");
+      return false;
+    } else {
+      toast.success("Operación actualizada");
+      await fetchTrades();
+      return true;
+    }
+  };
+
+  return { trades, loading, importTrades, deleteTrade, updateTrade, refetch: fetchTrades };
 }
