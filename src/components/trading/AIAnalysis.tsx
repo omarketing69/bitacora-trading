@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Trade } from "@/types/trade";
 import { Button } from "@/components/ui/button";
 import {
@@ -116,6 +116,14 @@ export function AIAnalysis({ trades }: AIAnalysisProps) {
 
   const currentAnalysis = activeTab === "risk" ? riskAnalysis : errorAnalysis;
   const isLoading = activeTab === "risk" ? isLoadingRisk : isLoadingErrors;
+
+  // Limpiar análisis previos cuando se abre el diálogo para forzar nuevo análisis con datos actuales
+  useEffect(() => {
+    if (open) {
+      setRiskAnalysis("");
+      setErrorAnalysis("");
+    }
+  }, [open]);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
