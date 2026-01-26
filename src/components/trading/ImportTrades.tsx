@@ -126,11 +126,15 @@ export function ImportTrades({ onImport }: ImportTradesProps) {
     const firstLineCells = lines[0].split(delimiter).map(c => c.trim());
     
     // Check if it's vertical format (one field per line)
-    // If first line has only one cell and it looks like a type/header
+    // Vertical format has 1 value per line and total lines is multiple of 8
     const isVerticalFormat = firstLineCells.length === 1 && 
       (firstLineCells[0].toLowerCase() === "type" || 
        firstLineCells[0].match(/^x\d+$/i) ||
-       lines.length >= 8);
+       (lines.length >= 8 && lines.length % 8 === 0) ||
+       // Check if second line looks like a Ref ID (numeric)
+       (lines[1] && /^\d+$/.test(lines[1].trim())));
+
+    console.log(`[ImportTrades] Format detection: vertical=${isVerticalFormat}, lines=${lines.length}, firstCells=${firstLineCells.length}`);
 
     let parsedData: Array<{
       refId: string;
@@ -147,20 +151,25 @@ export function ImportTrades({ onImport }: ImportTradesProps) {
       const FIELDS_PER_TRADE = 8;
       let dataLines = [...lines];
       
-      // Check if first block is headers
+      // Check if first block is headers (Type, Ref. ID, Currency, etc.)
       const firstField = dataLines[0]?.toLowerCase().trim();
-      if (firstField === "type") {
+      if (firstField === "type" || firstField === "tipo") {
         dataLines = dataLines.slice(FIELDS_PER_TRADE);
       }
 
+      console.log(`[ImportTrades] Processing ${dataLines.length} data lines (${Math.floor(dataLines.length / FIELDS_PER_TRADE)} potential trades)`);
+
       for (let i = 0; i + FIELDS_PER_TRADE <= dataLines.length; i += FIELDS_PER_TRADE) {
         const chunk = dataLines.slice(i, i + FIELDS_PER_TRADE).map(l => l.trim());
-        const [type, refId, currency, buyTime, stake, sellTime, , profitLoss] = chunk;
+        const [type, refId, currency, buyTime, stake, sellTime, contractValue, profitLoss] = chunk;
         
         const stakeNum = parseNumber(stake);
         const resultadoUsd = parseNumber(profitLoss);
 
-        if (refId && stakeNum > 0) {
+        console.log(`[ImportTrades] Parsing trade: refId=${refId}, type=${type}, stake=${stakeNum}, result=${resultadoUsd}`);
+
+        // Accept trade if refId exists (stake can be 0 in some edge cases)
+        if (refId && refId.match(/^\d+$/)) {
           parsedData.push({
             refId,
             type,
@@ -177,17 +186,26 @@ export function ImportTrades({ onImport }: ImportTradesProps) {
       const hasHeader = isHeaderRow(firstLineCells);
       const dataLines = hasHeader ? lines.slice(1) : lines;
 
+      console.log(`[ImportTrades] Parsing tabular format: ${dataLines.length} lines, hasHeader=${hasHeader}`);
+
       for (const line of dataLines) {
         const cells = line.split(delimiter).map(cell => cell.trim());
         
-        if (cells.length < 8) continue;
+        // Allow rows with at least 7 cells (some exports may have trailing empty cells)
+        if (cells.length < 7) {
+          console.log(`[ImportTrades] Skipping line with ${cells.length} cells: ${line.substring(0, 50)}...`);
+          continue;
+        }
 
-        const [type, refId, currency, buyTime, stake, sellTime, , profitLoss] = cells;
+        const [type, refId, currency, buyTime, stake, sellTime, contractValue, profitLoss] = cells;
 
         const stakeNum = parseNumber(stake);
-        const resultadoUsd = parseNumber(profitLoss);
+        const resultadoUsd = parseNumber(profitLoss || "0");
 
-        if (refId && stakeNum > 0) {
+        console.log(`[ImportTrades] Row: refId=${refId}, stake=${stakeNum}, result=${resultadoUsd}`);
+
+        // Accept if refId looks valid
+        if (refId && refId.match(/^\d+$/)) {
           parsedData.push({
             refId,
             type,
@@ -201,7 +219,10 @@ export function ImportTrades({ onImport }: ImportTradesProps) {
       }
     }
 
-    if (parsedData.length === 0) return [];
+    if (parsedData.length === 0) {
+      console.log(`[ImportTrades] No trades parsed from input`);
+      return [];
+    }
 
     // Sort by buy time (oldest first)
     parsedData.sort((a, b) => 

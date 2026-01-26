@@ -27,9 +27,11 @@ export function AIAnalysis({ trades }: AIAnalysisProps) {
   const [errorAnalysis, setErrorAnalysis] = useState("");
   const [isLoadingRisk, setIsLoadingRisk] = useState(false);
   const [isLoadingErrors, setIsLoadingErrors] = useState(false);
+  // Track trades count to detect changes
+  const [lastTradesCount, setLastTradesCount] = useState(0);
 
-  const streamAnalysis = async (type: AnalysisType) => {
-    if (trades.length === 0) {
+  const streamAnalysis = async (type: AnalysisType, currentTrades: Trade[]) => {
+    if (currentTrades.length === 0) {
       toast.error("No hay trades para analizar");
       return;
     }
@@ -40,6 +42,8 @@ export function AIAnalysis({ trades }: AIAnalysisProps) {
     setLoading(true);
     setAnalysis("");
 
+    console.log(`[AIAnalysis] Sending ${currentTrades.length} trades for ${type} analysis`);
+
     try {
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/analyze-trades`,
@@ -49,7 +53,7 @@ export function AIAnalysis({ trades }: AIAnalysisProps) {
             "Content-Type": "application/json",
             Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
           },
-          body: JSON.stringify({ trades, analysisType: type }),
+          body: JSON.stringify({ trades: currentTrades, analysisType: type }),
         }
       );
 
@@ -111,19 +115,31 @@ export function AIAnalysis({ trades }: AIAnalysisProps) {
   };
 
   const handleAnalyze = () => {
-    streamAnalysis(activeTab);
+    // Always use the current trades prop directly
+    streamAnalysis(activeTab, trades);
   };
 
   const currentAnalysis = activeTab === "risk" ? riskAnalysis : errorAnalysis;
   const isLoading = activeTab === "risk" ? isLoadingRisk : isLoadingErrors;
 
-  // Limpiar análisis previos cuando se abre el diálogo para forzar nuevo análisis con datos actuales
+  // Limpiar análisis previos cuando se abre el diálogo o cuando cambian los trades
   useEffect(() => {
     if (open) {
       setRiskAnalysis("");
       setErrorAnalysis("");
+      setLastTradesCount(trades.length);
+      console.log(`[AIAnalysis] Dialog opened with ${trades.length} trades`);
     }
-  }, [open]);
+  }, [open, trades.length]);
+
+  // Also clear when trades change significantly
+  useEffect(() => {
+    if (trades.length !== lastTradesCount && lastTradesCount > 0) {
+      setRiskAnalysis("");
+      setErrorAnalysis("");
+      console.log(`[AIAnalysis] Trades changed: ${lastTradesCount} -> ${trades.length}`);
+    }
+  }, [trades.length, lastTradesCount]);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
