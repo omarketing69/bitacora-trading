@@ -5,6 +5,7 @@ import { StatCard } from "./StatCard";
 import { TradeRow } from "./TradeRow";
 import { TradeDetail } from "./TradeDetail";
 import { ImportTrades } from "./ImportTrades";
+import { AIAnalysis } from "./AIAnalysis";
 import { ChangePassword } from "@/components/ChangePassword";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTrades } from "@/hooks/useTrades";
@@ -58,6 +59,7 @@ export function Dashboard() {
             </div>
             <div className="flex items-center gap-4">
               <ImportTrades onImport={importTrades} />
+              <AIAnalysis trades={trades} />
               <div className="text-right hidden sm:block">
                 <p className="text-xs text-muted-foreground">Saldo Actual</p>
                 <p className="font-mono font-bold text-lg text-foreground">
