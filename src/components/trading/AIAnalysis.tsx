@@ -238,7 +238,7 @@ export function AIAnalysis({ trades }: AIAnalysisProps) {
         </Tabs>
 
         <p className="text-xs text-muted-foreground text-center mt-2">
-          El análisis se basa en los datos de tus {trades.length} trades importados
+          El análisis se basa en los datos de {trades.length} trades
         </p>
       </DialogContent>
     </Dialog>

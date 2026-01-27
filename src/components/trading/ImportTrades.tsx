@@ -79,45 +79,6 @@ export function ImportTrades({ onImport }: ImportTradesProps) {
     );
   };
 
-  const parseVerticalFormat = (lines: string[]): Trade[] => {
-    // Deriv vertical format: each field on its own line
-    // Pattern: Type, Ref. ID, Currency, Buy time, Stake, Sell time, Contract value, Total profit/loss
-    const FIELDS_PER_TRADE = 8;
-    const trades: Trade[] = [];
-    
-    // Remove header lines if present
-    let dataLines = [...lines];
-    const firstLine = dataLines[0]?.toLowerCase().trim();
-    if (firstLine === "type" || firstLine.includes("ref")) {
-      // Skip header block (8 lines)
-      dataLines = dataLines.slice(FIELDS_PER_TRADE);
-    }
-
-    // Process trades in chunks of 8 fields
-    for (let i = 0; i + FIELDS_PER_TRADE <= dataLines.length; i += FIELDS_PER_TRADE) {
-      const chunk = dataLines.slice(i, i + FIELDS_PER_TRADE).map(l => l.trim());
-      
-      const [type, refId, currency, buyTime, stake, sellTime, , profitLoss] = chunk;
-      
-      const stakeNum = parseNumber(stake);
-      const resultadoUsd = parseNumber(profitLoss);
-
-      if (refId && stakeNum > 0) {
-        trades.push({
-          refId,
-          type,
-          currency,
-          buyTime,
-          sellTime,
-          stake: stakeNum,
-          resultado: resultadoUsd,
-        } as any);
-      }
-    }
-
-    return trades;
-  };
-
   const parseTabularData = (input: string): Trade[] => {
     const lines = input.trim().split("\n").filter(line => line.trim());
     if (lines.length === 0) return [];
@@ -126,13 +87,17 @@ export function ImportTrades({ onImport }: ImportTradesProps) {
     const firstLineCells = lines[0].split(delimiter).map(c => c.trim());
     
     // Check if it's vertical format (one field per line)
-    // Vertical format has 1 value per line and total lines is multiple of 8
-    const isVerticalFormat = firstLineCells.length === 1 && 
-      (firstLineCells[0].toLowerCase() === "type" || 
-       firstLineCells[0].match(/^x\d+$/i) ||
-       (lines.length >= 8 && lines.length % 8 === 0) ||
-       // Check if second line looks like a Ref ID (numeric)
-       (lines[1] && /^\d+$/.test(lines[1].trim())));
+    // NOTE: some copy/pastes include extra blank/separator lines so we must NOT rely on lines%8 === 0
+    const isVerticalFormat =
+      firstLineCells.length === 1 &&
+      (
+        firstLineCells[0].toLowerCase() === "type" ||
+        firstLineCells[0].match(/^x\d+$/i) ||
+        // Check if second line looks like a Ref ID (numeric)
+        (lines[1] && /^\d+$/.test(lines[1].trim())) ||
+        // Or anywhere in the first ~30 lines (helps when the paste starts mid-block)
+        lines.slice(0, 30).some((l) => /^\d+$/.test(l.trim()))
+      );
 
     console.log(`[ImportTrades] Format detection: vertical=${isVerticalFormat}, lines=${lines.length}, firstCells=${firstLineCells.length}`);
 
@@ -147,29 +112,62 @@ export function ImportTrades({ onImport }: ImportTradesProps) {
     }> = [];
 
     if (isVerticalFormat) {
-      // Parse vertical format
-      const FIELDS_PER_TRADE = 8;
-      let dataLines = [...lines];
-      
-      // Check if first block is headers (Type, Ref. ID, Currency, etc.)
-      const firstField = dataLines[0]?.toLowerCase().trim();
-      if (firstField === "type" || firstField === "tipo") {
-        dataLines = dataLines.slice(FIELDS_PER_TRADE);
-      }
+      // Parse vertical format (robust): scan by Ref ID markers instead of fixed chunks
+      let dataLines = [...lines].map((l) => l.trim()).filter(Boolean);
 
-      console.log(`[ImportTrades] Processing ${dataLines.length} data lines (${Math.floor(dataLines.length / FIELDS_PER_TRADE)} potential trades)`);
+      const isHeaderWord = (v: string) => {
+        const t = v.toLowerCase().trim();
+        return (
+          t === "type" ||
+          t === "tipo" ||
+          t === "ref. id" ||
+          t === "ref id" ||
+          t === "currency" ||
+          t === "buy time" ||
+          t === "sell time" ||
+          t === "stake" ||
+          t === "contract value" ||
+          t.includes("profit")
+        );
+      };
 
-      for (let i = 0; i + FIELDS_PER_TRADE <= dataLines.length; i += FIELDS_PER_TRADE) {
-        const chunk = dataLines.slice(i, i + FIELDS_PER_TRADE).map(l => l.trim());
-        const [type, refId, currency, buyTime, stake, sellTime, contractValue, profitLoss] = chunk;
-        
-        const stakeNum = parseNumber(stake);
-        const resultadoUsd = parseNumber(profitLoss);
+      const looksLikeDate = (v: string) => {
+        const t = v.trim();
+        // quick heuristic for Deriv strings like: 21 Jan 2026 14:46:51 GMT
+        return /\b\d{1,2}\s+[A-Za-z]{3}\s+\d{4}\b/.test(t) || t.includes("GMT");
+      };
 
-        console.log(`[ImportTrades] Parsing trade: refId=${refId}, type=${type}, stake=${stakeNum}, result=${resultadoUsd}`);
+      const looksLikeNumber = (v: string) => /[-+]?\d/.test(v);
 
-        // Accept trade if refId exists (stake can be 0 in some edge cases)
-        if (refId && refId.match(/^\d+$/)) {
+      console.log(`[ImportTrades] Processing ${dataLines.length} data lines (refId-scan mode)`);
+
+      for (let i = 0; i < dataLines.length; i++) {
+        const line = dataLines[i];
+        if (isHeaderWord(line)) continue;
+
+        // Ref ID line is numeric
+        if (!/^\d+$/.test(line)) continue;
+
+        const refId = line;
+        const type = dataLines[i - 1] && !isHeaderWord(dataLines[i - 1]) ? dataLines[i - 1] : "";
+        const currency = dataLines[i + 1] && !isHeaderWord(dataLines[i + 1]) ? dataLines[i + 1] : "";
+        const buyTime = dataLines[i + 2] || "";
+        const stakeRaw = dataLines[i + 3] || "";
+        const sellTime = dataLines[i + 4] || "";
+
+        // Profit/loss is usually 2 lines after sellTime (with contract value in between)
+        // Some copies omit contract value, so profit can be right after sellTime.
+        const candidate1 = dataLines[i + 5] || "";
+        const candidate2 = dataLines[i + 6] || "";
+        const profitLossRaw = looksLikeNumber(candidate2) ? candidate2 : candidate1;
+
+        const stakeNum = parseNumber(stakeRaw);
+        const resultadoUsd = parseNumber(profitLossRaw);
+
+        console.log(`[ImportTrades] Parsing trade(ref-scan): refId=${refId}, type=${type}, stake=${stakeNum}, result=${resultadoUsd}`);
+
+        // Basic sanity checks: we at least need stake + dates to be in the right neighborhood
+        if (refId && (stakeNum > 0 || looksLikeNumber(stakeRaw)) && (looksLikeDate(buyTime) || looksLikeDate(sellTime))) {
           parsedData.push({
             refId,
             type,
@@ -179,6 +177,10 @@ export function ImportTrades({ onImport }: ImportTradesProps) {
             stake: stakeNum,
             resultado: resultadoUsd,
           });
+
+          // Skip ahead to avoid re-detecting the same block
+          // If candidate2 was used, we consumed up to i+6; else up to i+5.
+          i += looksLikeNumber(candidate2) ? 6 : 5;
         }
       }
     } else {
