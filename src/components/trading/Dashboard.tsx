@@ -28,12 +28,7 @@ export function Dashboard() {
   const { user, signOut } = useAuth();
   const { trades, loading, importTrades, updateTrade } = useTrades();
   const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null);
-  const [lastImportedIds, setLastImportedIds] = useState<string[]>([]);
   const stats = calculateTradeStats(trades);
-
-  const tradesForAI = lastImportedIds.length
-    ? trades.filter((t) => lastImportedIds.includes(t.id))
-    : trades;
 
   if (loading) {
     return (
@@ -63,13 +58,8 @@ export function Dashboard() {
               </div>
             </div>
             <div className="flex items-center gap-4">
-              <ImportTrades
-                onImport={(newTrades) => {
-                  setLastImportedIds(newTrades.map((t) => t.id));
-                  importTrades(newTrades);
-                }}
-              />
-              <AIAnalysis trades={tradesForAI} />
+              <ImportTrades onImport={importTrades} />
+              <AIAnalysis trades={trades} />
               <div className="text-right hidden sm:block">
                 <p className="text-xs text-muted-foreground">Saldo Actual</p>
                 <p className="font-mono font-bold text-lg text-foreground">

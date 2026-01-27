@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Trade } from "@/types/trade";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,15 +10,27 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Brain, Shield, AlertTriangle, Loader2, Sparkles } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Brain, Shield, AlertTriangle, Loader2, Sparkles, Calendar, Filter, List } from "lucide-react";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
+import { format, parseISO, isWithinInterval, startOfDay, endOfDay } from "date-fns";
 
 interface AIAnalysisProps {
   trades: Trade[];
 }
 
 type AnalysisType = "risk" | "errors";
+type FilterMode = "all" | "date" | "select";
 
 export function AIAnalysis({ trades }: AIAnalysisProps) {
   const [open, setOpen] = useState(false);
@@ -27,8 +39,63 @@ export function AIAnalysis({ trades }: AIAnalysisProps) {
   const [errorAnalysis, setErrorAnalysis] = useState("");
   const [isLoadingRisk, setIsLoadingRisk] = useState(false);
   const [isLoadingErrors, setIsLoadingErrors] = useState(false);
-  // Track trades count to detect changes
-  const [lastTradesCount, setLastTradesCount] = useState(0);
+  
+  // Filter state
+  const [filterMode, setFilterMode] = useState<FilterMode>("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [selectedTradeIds, setSelectedTradeIds] = useState<Set<string>>(new Set());
+
+  // Get unique dates from trades for quick selection
+  const uniqueDates = useMemo(() => {
+    const dates = new Set<string>();
+    trades.forEach((t) => {
+      const date = t.fecha_entrada.split(" ")[0];
+      dates.add(date);
+    });
+    return Array.from(dates).sort().reverse();
+  }, [trades]);
+
+  // Filter trades based on mode
+  const filteredTrades = useMemo(() => {
+    if (filterMode === "all") return trades;
+    
+    if (filterMode === "date" && dateFrom) {
+      const from = startOfDay(parseISO(dateFrom));
+      const to = dateTo ? endOfDay(parseISO(dateTo)) : endOfDay(parseISO(dateFrom));
+      
+      return trades.filter((t) => {
+        const tradeDate = parseISO(t.fecha_entrada.split(" ")[0]);
+        return isWithinInterval(tradeDate, { start: from, end: to });
+      });
+    }
+    
+    if (filterMode === "select") {
+      return trades.filter((t) => selectedTradeIds.has(t.id));
+    }
+    
+    return trades;
+  }, [trades, filterMode, dateFrom, dateTo, selectedTradeIds]);
+
+  const toggleTradeSelection = (id: string) => {
+    setSelectedTradeIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const selectAllTrades = () => {
+    setSelectedTradeIds(new Set(trades.map((t) => t.id)));
+  };
+
+  const clearSelection = () => {
+    setSelectedTradeIds(new Set());
+  };
 
   const streamAnalysis = async (type: AnalysisType, currentTrades: Trade[]) => {
     if (currentTrades.length === 0) {
@@ -115,31 +182,24 @@ export function AIAnalysis({ trades }: AIAnalysisProps) {
   };
 
   const handleAnalyze = () => {
-    // Always use the current trades prop directly
-    streamAnalysis(activeTab, trades);
+    streamAnalysis(activeTab, filteredTrades);
   };
 
   const currentAnalysis = activeTab === "risk" ? riskAnalysis : errorAnalysis;
   const isLoading = activeTab === "risk" ? isLoadingRisk : isLoadingErrors;
 
-  // Limpiar análisis previos cuando se abre el diálogo o cuando cambian los trades
+  // Reset state when dialog opens
   useEffect(() => {
     if (open) {
       setRiskAnalysis("");
       setErrorAnalysis("");
-      setLastTradesCount(trades.length);
+      setFilterMode("all");
+      setDateFrom("");
+      setDateTo("");
+      setSelectedTradeIds(new Set());
       console.log(`[AIAnalysis] Dialog opened with ${trades.length} trades`);
     }
   }, [open, trades.length]);
-
-  // Also clear when trades change significantly
-  useEffect(() => {
-    if (trades.length !== lastTradesCount && lastTradesCount > 0) {
-      setRiskAnalysis("");
-      setErrorAnalysis("");
-      console.log(`[AIAnalysis] Trades changed: ${lastTradesCount} -> ${trades.length}`);
-    }
-  }, [trades.length, lastTradesCount]);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -154,13 +214,126 @@ export function AIAnalysis({ trades }: AIAnalysisProps) {
           <span className="hidden sm:inline">Análisis IA</span>
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-3xl max-h-[85vh]">
+      <DialogContent className="max-w-4xl max-h-[90vh]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" />
             Análisis con Inteligencia Artificial
           </DialogTitle>
         </DialogHeader>
+
+        {/* Filter Section */}
+        <div className="bg-muted/50 rounded-lg p-4 space-y-4">
+          <div className="flex items-center gap-2 text-sm font-medium">
+            <Filter className="h-4 w-4" />
+            Filtrar Trades para Análisis
+          </div>
+          
+          <div className="flex flex-wrap gap-4">
+            <Select value={filterMode} onValueChange={(v) => setFilterMode(v as FilterMode)}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Modo de filtro" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">
+                  <div className="flex items-center gap-2">
+                    <List className="h-4 w-4" />
+                    Todos ({trades.length})
+                  </div>
+                </SelectItem>
+                <SelectItem value="date">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4" />
+                    Por Fecha
+                  </div>
+                </SelectItem>
+                <SelectItem value="select">
+                  <div className="flex items-center gap-2">
+                    <Checkbox className="h-4 w-4" />
+                    Selección Manual
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+
+            {filterMode === "date" && (
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="dateFrom" className="text-xs whitespace-nowrap">Desde:</Label>
+                  <Input
+                    id="dateFrom"
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    className="w-[150px] h-9"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="dateTo" className="text-xs whitespace-nowrap">Hasta:</Label>
+                  <Input
+                    id="dateTo"
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    className="w-[150px] h-9"
+                  />
+                </div>
+                {uniqueDates.length > 0 && (
+                  <Select onValueChange={(v) => { setDateFrom(v); setDateTo(v); }}>
+                    <SelectTrigger className="w-[140px] h-9">
+                      <SelectValue placeholder="Día rápido" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {uniqueDates.slice(0, 10).map((date) => (
+                        <SelectItem key={date} value={date}>
+                          {format(parseISO(date), "dd/MM/yyyy")}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+            )}
+          </div>
+
+          {filterMode === "select" && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={selectAllTrades}>
+                  Seleccionar todos
+                </Button>
+                <Button variant="outline" size="sm" onClick={clearSelection}>
+                  Limpiar
+                </Button>
+                <span className="text-sm text-muted-foreground ml-2">
+                  {selectedTradeIds.size} seleccionados
+                </span>
+              </div>
+              <ScrollArea className="h-[150px] rounded border border-border p-2">
+                <div className="space-y-1">
+                  {trades.map((trade) => (
+                    <div
+                      key={trade.id}
+                      className="flex items-center gap-2 p-2 rounded hover:bg-muted/50 cursor-pointer"
+                      onClick={() => toggleTradeSelection(trade.id)}
+                    >
+                      <Checkbox checked={selectedTradeIds.has(trade.id)} />
+                      <span className="text-xs font-mono">{trade.fecha_entrada}</span>
+                      <span className="text-xs">{trade.instrumento}</span>
+                      <span className={`text-xs ml-auto ${trade.resultado_usd >= 0 ? "text-green-500" : "text-red-500"}`}>
+                        ${trade.resultado_usd.toFixed(2)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            </div>
+          )}
+
+          <div className="text-xs text-muted-foreground">
+            {filteredTrades.length} trades seleccionados para el análisis
+          </div>
+        </div>
 
         <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
           <TabsList className="grid w-full grid-cols-2">
@@ -183,7 +356,7 @@ export function AIAnalysis({ trades }: AIAnalysisProps) {
               </p>
               <Button
                 onClick={handleAnalyze}
-                disabled={isLoading || trades.length === 0}
+                disabled={isLoading || filteredTrades.length === 0}
                 size="sm"
                 className="gap-2"
               >
@@ -195,14 +368,14 @@ export function AIAnalysis({ trades }: AIAnalysisProps) {
                 ) : (
                   <>
                     <Brain className="h-4 w-4" />
-                    Analizar {trades.length} trades
+                    Analizar {filteredTrades.length} trades
                   </>
                 )}
               </Button>
             </div>
 
             <TabsContent value="risk" className="mt-0">
-              <ScrollArea className="h-[400px] rounded-md border border-border p-4 bg-muted/30">
+              <ScrollArea className="h-[300px] rounded-md border border-border p-4 bg-muted/30">
                 {riskAnalysis ? (
                   <div className="prose prose-sm dark:prose-invert max-w-none">
                     <ReactMarkdown>{riskAnalysis}</ReactMarkdown>
@@ -219,7 +392,7 @@ export function AIAnalysis({ trades }: AIAnalysisProps) {
             </TabsContent>
 
             <TabsContent value="errors" className="mt-0">
-              <ScrollArea className="h-[400px] rounded-md border border-border p-4 bg-muted/30">
+              <ScrollArea className="h-[300px] rounded-md border border-border p-4 bg-muted/30">
                 {errorAnalysis ? (
                   <div className="prose prose-sm dark:prose-invert max-w-none">
                     <ReactMarkdown>{errorAnalysis}</ReactMarkdown>
@@ -236,10 +409,6 @@ export function AIAnalysis({ trades }: AIAnalysisProps) {
             </TabsContent>
           </div>
         </Tabs>
-
-        <p className="text-xs text-muted-foreground text-center mt-2">
-          El análisis se basa en los datos de {trades.length} trades
-        </p>
       </DialogContent>
     </Dialog>
   );
