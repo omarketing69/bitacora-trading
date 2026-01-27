@@ -139,6 +139,25 @@ export function ImportTrades({ onImport }: ImportTradesProps) {
 
       const looksLikeNumber = (v: string) => /[-+]?\d/.test(v);
 
+      const looksLikeCurrency = (v: string) => /^[A-Z]{3}$/.test(v.trim());
+
+      const isRefId = (v: string) => /^\d{6,}$/.test(v.trim());
+
+      const looksLikeType = (v: string) => {
+        const t = v.trim();
+        // Deriv often uses x300 / x400 / x500 etc. in these exports
+        return /^x\d+$/i.test(t);
+      };
+
+      const findInRange = (arr: string[], start: number, end: number, predicate: (v: string) => boolean) => {
+        const s = Math.max(0, start);
+        const e = Math.min(arr.length - 1, end);
+        for (let idx = s; idx <= e; idx++) {
+          if (predicate(arr[idx])) return { idx, value: arr[idx] };
+        }
+        return null;
+      };
+
       console.log(`[ImportTrades] Processing ${dataLines.length} data lines (refId-scan mode)`);
 
       for (let i = 0; i < dataLines.length; i++) {
@@ -146,42 +165,70 @@ export function ImportTrades({ onImport }: ImportTradesProps) {
         if (isHeaderWord(line)) continue;
 
         // Ref ID line is numeric
-        if (!/^\d+$/.test(line)) continue;
+        if (!isRefId(line)) continue;
 
         const refId = line;
-        const type = dataLines[i - 1] && !isHeaderWord(dataLines[i - 1]) ? dataLines[i - 1] : "";
-        const currency = dataLines[i + 1] && !isHeaderWord(dataLines[i + 1]) ? dataLines[i + 1] : "";
-        const buyTime = dataLines[i + 2] || "";
-        const stakeRaw = dataLines[i + 3] || "";
-        const sellTime = dataLines[i + 4] || "";
 
-        // Profit/loss is usually 2 lines after sellTime (with contract value in between)
-        // Some copies omit contract value, so profit can be right after sellTime.
-        const candidate1 = dataLines[i + 5] || "";
-        const candidate2 = dataLines[i + 6] || "";
-        const profitLossRaw = looksLikeNumber(candidate2) ? candidate2 : candidate1;
+        // Find type nearby (best effort): look a few lines back for x###
+        const typeHit = findInRange(dataLines, i - 4, i - 1, (v) => !isHeaderWord(v) && looksLikeType(v));
+        const type = typeHit?.value ?? "";
 
+        // Currency is often right after refId, but not always—search next few lines.
+        const currencyHit = findInRange(dataLines, i + 1, i + 4, (v) => !isHeaderWord(v) && looksLikeCurrency(v));
+        const currency = currencyHit?.value ?? "";
+
+        // Buy time: first date after refId within next ~10 lines
+        const buyHit = findInRange(dataLines, i + 1, i + 12, (v) => !isHeaderWord(v) && looksLikeDate(v));
+        if (!buyHit) continue;
+        const buyTime = buyHit.value;
+
+        // Stake: first numeric after buy time, avoiding refIds
+        const stakeHit = findInRange(
+          dataLines,
+          buyHit.idx + 1,
+          buyHit.idx + 8,
+          (v) => !isHeaderWord(v) && looksLikeNumber(v) && !isRefId(v)
+        );
+        if (!stakeHit) continue;
+        const stakeRaw = stakeHit.value;
         const stakeNum = parseNumber(stakeRaw);
+
+        // Sell time: next date after stake
+        const sellHit = findInRange(dataLines, stakeHit.idx + 1, stakeHit.idx + 10, (v) => !isHeaderWord(v) && looksLikeDate(v));
+        if (!sellHit) continue;
+        const sellTime = sellHit.value;
+
+        // Profit/Loss: first numeric after sell time, avoiding refIds.
+        // (Contract value may appear first; we accept the last numeric within the next few lines as P/L)
+        const pnlCandidates: Array<{ idx: number; value: string }> = [];
+        for (let j = sellHit.idx + 1; j <= Math.min(dataLines.length - 1, sellHit.idx + 10); j++) {
+          const v = dataLines[j];
+          if (isHeaderWord(v) || isRefId(v)) continue;
+          if (looksLikeNumber(v)) pnlCandidates.push({ idx: j, value: v });
+          // Stop early if we hit next type/refId-ish block markers
+          if (looksLikeType(v) && pnlCandidates.length > 0) break;
+        }
+        if (pnlCandidates.length === 0) continue;
+        const pnlHit = pnlCandidates[pnlCandidates.length - 1];
+        const profitLossRaw = pnlHit.value;
         const resultadoUsd = parseNumber(profitLossRaw);
 
-        console.log(`[ImportTrades] Parsing trade(ref-scan): refId=${refId}, type=${type}, stake=${stakeNum}, result=${resultadoUsd}`);
+        console.log(
+          `[ImportTrades] Parsing trade(ref-scan): refId=${refId}, type=${type}, stake=${stakeNum}, result=${resultadoUsd}`
+        );
 
-        // Basic sanity checks: we at least need stake + dates to be in the right neighborhood
-        if (refId && (stakeNum > 0 || looksLikeNumber(stakeRaw)) && (looksLikeDate(buyTime) || looksLikeDate(sellTime))) {
-          parsedData.push({
-            refId,
-            type,
-            currency,
-            buyTime,
-            sellTime,
-            stake: stakeNum,
-            resultado: resultadoUsd,
-          });
+        parsedData.push({
+          refId,
+          type,
+          currency,
+          buyTime,
+          sellTime,
+          stake: stakeNum,
+          resultado: resultadoUsd,
+        });
 
-          // Skip ahead to avoid re-detecting the same block
-          // If candidate2 was used, we consumed up to i+6; else up to i+5.
-          i += looksLikeNumber(candidate2) ? 6 : 5;
-        }
+        // Skip ahead to just after P/L to reduce double-detections
+        i = Math.max(i, pnlHit.idx);
       }
     } else {
       // Parse horizontal/tabular format
