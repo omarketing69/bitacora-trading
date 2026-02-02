@@ -71,6 +71,38 @@ export function Dashboard() {
             </div>
             <div className="flex items-center gap-4">
               <ImportTrades onImport={importTrades} />
+              {trades.length > 0 && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="gap-1"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      <span className="hidden sm:inline">Borrar Todo</span>
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>¿Borrar todo el historial?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Esta acción eliminará permanentemente todas las {trades.length} operaciones registradas. 
+                        No se puede deshacer.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={deleteAllTrades}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        Sí, borrar todo
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
               <AIAnalysis trades={trades} />
               <div className="text-right hidden sm:block">
                 <p className="text-xs text-muted-foreground">Saldo Actual</p>
@@ -148,40 +180,8 @@ export function Dashboard() {
           <div className="table-header px-4 py-3 border-b border-border flex items-center gap-2">
             <Zap className="h-4 w-4" />
             <span>Historial de Operaciones</span>
-            <span className="ml-auto text-xs font-normal normal-case flex items-center gap-2">
+            <span className="ml-auto text-xs font-normal normal-case">
               {trades.length} trades
-              {trades.length > 0 && (
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 px-2 text-destructive hover:text-destructive hover:bg-destructive/10"
-                    >
-                      <Trash2 className="h-4 w-4 mr-1" />
-                      Borrar todo
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>¿Borrar todo el historial?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        Esta acción eliminará permanentemente todas las {trades.length} operaciones registradas. 
-                        No se puede deshacer.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                      <AlertDialogAction
-                        onClick={deleteAllTrades}
-                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                      >
-                        Sí, borrar todo
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              )}
             </span>
           </div>
           <ScrollArea className="h-[500px]">
