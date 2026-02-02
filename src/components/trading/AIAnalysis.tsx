@@ -20,7 +20,8 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Brain, Shield, AlertTriangle, Loader2, Sparkles, Calendar, Filter, List } from "lucide-react";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Brain, Shield, AlertTriangle, Loader2, Sparkles, Calendar, Filter, List, Bitcoin, DollarSign, TrendingUp, Zap } from "lucide-react";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
 import { format, parseISO, isWithinInterval, startOfDay, endOfDay } from "date-fns";
@@ -31,10 +32,39 @@ interface AIAnalysisProps {
 
 type AnalysisType = "risk" | "errors";
 type FilterMode = "all" | "date" | "select";
+type MarketType = "crypto" | "forex" | "sp500" | "synthetic";
+
+const MARKET_OPTIONS: { value: MarketType; label: string; icon: React.ReactNode; description: string }[] = [
+  { 
+    value: "crypto", 
+    label: "Cripto", 
+    icon: <Bitcoin className="h-4 w-4" />,
+    description: "BTC, ETH, Altcoins"
+  },
+  { 
+    value: "forex", 
+    label: "Forex", 
+    icon: <DollarSign className="h-4 w-4" />,
+    description: "EUR/USD, GBP/USD"
+  },
+  { 
+    value: "sp500", 
+    label: "S&P 500", 
+    icon: <TrendingUp className="h-4 w-4" />,
+    description: "Índices USA"
+  },
+  { 
+    value: "synthetic", 
+    label: "Sintéticos", 
+    icon: <Zap className="h-4 w-4" />,
+    description: "Boom/Crash Deriv"
+  },
+];
 
 export function AIAnalysis({ trades }: AIAnalysisProps) {
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<AnalysisType>("risk");
+  const [marketType, setMarketType] = useState<MarketType>("synthetic");
   const [riskAnalysis, setRiskAnalysis] = useState("");
   const [errorAnalysis, setErrorAnalysis] = useState("");
   const [isLoadingRisk, setIsLoadingRisk] = useState(false);
@@ -97,7 +127,7 @@ export function AIAnalysis({ trades }: AIAnalysisProps) {
     setSelectedTradeIds(new Set());
   };
 
-  const streamAnalysis = async (type: AnalysisType, currentTrades: Trade[]) => {
+  const streamAnalysis = async (type: AnalysisType, currentTrades: Trade[], market: MarketType) => {
     if (currentTrades.length === 0) {
       toast.error("No hay trades para analizar");
       return;
@@ -109,7 +139,7 @@ export function AIAnalysis({ trades }: AIAnalysisProps) {
     setLoading(true);
     setAnalysis("");
 
-    console.log(`[AIAnalysis] Sending ${currentTrades.length} trades for ${type} analysis`);
+    console.log(`[AIAnalysis] Sending ${currentTrades.length} trades for ${type} analysis, market: ${market}`);
 
     try {
       const response = await fetch(
@@ -120,7 +150,11 @@ export function AIAnalysis({ trades }: AIAnalysisProps) {
             "Content-Type": "application/json",
             Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
           },
-          body: JSON.stringify({ trades: currentTrades, analysisType: type }),
+          body: JSON.stringify({ 
+            trades: currentTrades, 
+            analysisType: type,
+            marketType: market 
+          }),
         }
       );
 
@@ -182,11 +216,12 @@ export function AIAnalysis({ trades }: AIAnalysisProps) {
   };
 
   const handleAnalyze = () => {
-    streamAnalysis(activeTab, filteredTrades);
+    streamAnalysis(activeTab, filteredTrades, marketType);
   };
 
   const currentAnalysis = activeTab === "risk" ? riskAnalysis : errorAnalysis;
   const isLoading = activeTab === "risk" ? isLoadingRisk : isLoadingErrors;
+  const selectedMarket = MARKET_OPTIONS.find(m => m.value === marketType);
 
   // Reset state when dialog opens
   useEffect(() => {
@@ -221,6 +256,37 @@ export function AIAnalysis({ trades }: AIAnalysisProps) {
             Análisis con Inteligencia Artificial
           </DialogTitle>
         </DialogHeader>
+
+        {/* Market Type Selector */}
+        <div className="bg-gradient-to-r from-primary/10 to-primary/5 rounded-lg p-4 space-y-3">
+          <div className="flex items-center gap-2 text-sm font-medium">
+            <Zap className="h-4 w-4 text-primary" />
+            Tipo de Mercado
+          </div>
+          <ToggleGroup 
+            type="single" 
+            value={marketType} 
+            onValueChange={(value) => value && setMarketType(value as MarketType)}
+            className="grid grid-cols-2 sm:grid-cols-4 gap-2"
+          >
+            {MARKET_OPTIONS.map((option) => (
+              <ToggleGroupItem
+                key={option.value}
+                value={option.value}
+                className="flex flex-col items-center gap-1 py-3 px-2 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+              >
+                {option.icon}
+                <span className="text-xs font-medium">{option.label}</span>
+                <span className="text-[10px] opacity-70 hidden sm:block">{option.description}</span>
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+          {selectedMarket && (
+            <p className="text-xs text-muted-foreground">
+              El análisis estará especializado en {selectedMarket.label}: {selectedMarket.description}
+            </p>
+          )}
+        </div>
 
         {/* Filter Section */}
         <div className="bg-muted/50 rounded-lg p-4 space-y-4">
@@ -351,8 +417,8 @@ export function AIAnalysis({ trades }: AIAnalysisProps) {
             <div className="flex items-center justify-between mb-4">
               <p className="text-sm text-muted-foreground">
                 {activeTab === "risk"
-                  ? "Analiza tu gestión de riesgo y money management"
-                  : "Identifica errores y patrones de mejora en tus trades"}
+                  ? `Analiza tu gestión de riesgo para ${selectedMarket?.label}`
+                  : `Identifica errores típicos de ${selectedMarket?.label}`}
               </p>
               <Button
                 onClick={handleAnalyze}
