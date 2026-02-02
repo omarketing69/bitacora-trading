@@ -144,5 +144,27 @@ export function useTrades() {
     }
   };
 
-  return { trades, loading, importTrades, deleteTrade, updateTrade, refetch: fetchTrades };
+  const deleteAllTrades = async () => {
+    if (!user) {
+      toast.error("Debes iniciar sesión para borrar trades");
+      return false;
+    }
+
+    const { error } = await supabase
+      .from("trades")
+      .delete()
+      .eq("user_id", user.id);
+
+    if (error) {
+      console.error("Error deleting all trades:", error);
+      toast.error("Error al borrar historial");
+      return false;
+    } else {
+      toast.success("Historial borrado correctamente");
+      setTrades([]);
+      return true;
+    }
+  };
+
+  return { trades, loading, importTrades, deleteTrade, updateTrade, deleteAllTrades, refetch: fetchTrades };
 }

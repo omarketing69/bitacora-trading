@@ -20,13 +20,25 @@ import {
   ChevronUp,
   LogOut,
   Loader2,
+  Trash2,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 export function Dashboard() {
   const { user, signOut } = useAuth();
-  const { trades, loading, importTrades, updateTrade } = useTrades();
+  const { trades, loading, importTrades, updateTrade, deleteAllTrades } = useTrades();
   const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null);
   const stats = calculateTradeStats(trades);
 
@@ -136,8 +148,40 @@ export function Dashboard() {
           <div className="table-header px-4 py-3 border-b border-border flex items-center gap-2">
             <Zap className="h-4 w-4" />
             <span>Historial de Operaciones</span>
-            <span className="ml-auto text-xs font-normal normal-case">
+            <span className="ml-auto text-xs font-normal normal-case flex items-center gap-2">
               {trades.length} trades
+              {trades.length > 0 && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+                    >
+                      <Trash2 className="h-4 w-4 mr-1" />
+                      Borrar todo
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>¿Borrar todo el historial?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Esta acción eliminará permanentemente todas las {trades.length} operaciones registradas. 
+                        No se puede deshacer.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={deleteAllTrades}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        Sí, borrar todo
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
             </span>
           </div>
           <ScrollArea className="h-[500px]">
