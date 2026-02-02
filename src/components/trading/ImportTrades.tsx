@@ -138,6 +138,9 @@ export function ImportTrades({ onImport }: ImportTradesProps) {
       };
 
       const looksLikeNumber = (v: string) => /[-+]?\d/.test(v);
+      
+      // P/L values typically start with + or - prefix
+      const looksLikeProfitLoss = (v: string) => /^[+-]/.test(v.trim()) && /\d/.test(v);
 
       const looksLikeCurrency = (v: string) => /^[A-Z]{3}$/.test(v.trim());
 
@@ -198,20 +201,26 @@ export function ImportTrades({ onImport }: ImportTradesProps) {
         if (!sellHit) continue;
         const sellTime = sellHit.value;
 
-        // Profit/Loss: first numeric after sell time, avoiding refIds.
-        // (Contract value may appear first; we accept the last numeric within the next few lines as P/L)
-        const pnlCandidates: Array<{ idx: number; value: string }> = [];
-        for (let j = sellHit.idx + 1; j <= Math.min(dataLines.length - 1, sellHit.idx + 10); j++) {
+        // Profit/Loss: search for values with +/- prefix (typical P/L format)
+        // Contract value comes before P/L, so we prioritize +/- prefixed values
+        const pnlCandidates: Array<{ idx: number; value: string; isPnL: boolean }> = [];
+        for (let j = sellHit.idx + 1; j <= Math.min(dataLines.length - 1, sellHit.idx + 12); j++) {
           const v = dataLines[j];
           if (isHeaderWord(v) || isRefId(v)) continue;
-          if (looksLikeNumber(v)) pnlCandidates.push({ idx: j, value: v });
+          if (looksLikeNumber(v)) {
+            pnlCandidates.push({ idx: j, value: v, isPnL: looksLikeProfitLoss(v) });
+          }
           // Stop early if we hit next type/refId-ish block markers
           if (looksLikeType(v) && pnlCandidates.length > 0) break;
         }
         if (pnlCandidates.length === 0) continue;
-        const pnlHit = pnlCandidates[pnlCandidates.length - 1];
+        
+        // Prefer values with +/- prefix (actual P/L), otherwise take the last numeric
+        const pnlHit = pnlCandidates.find(c => c.isPnL) || pnlCandidates[pnlCandidates.length - 1];
         const profitLossRaw = pnlHit.value;
         const resultadoUsd = parseNumber(profitLossRaw);
+        
+        console.log(`[ImportTrades] P/L candidates for ${refId}:`, pnlCandidates.map(c => `${c.value}(isPnL:${c.isPnL})`).join(', '));
 
         console.log(
           `[ImportTrades] Parsing trade(ref-scan): refId=${refId}, type=${type}, stake=${stakeNum}, result=${resultadoUsd}`
