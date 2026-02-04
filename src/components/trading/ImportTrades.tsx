@@ -31,13 +31,16 @@ interface ImportTradesProps {
   onImport: (trades: Trade[]) => void;
 }
 
-type PlatformType = "deriv" | "mt5";
+type PlatformType = "deriv" | "mt5" | "binance";
 
 // Expected columns from Deriv format
 const DERIV_HEADERS = ["type", "ref. id", "currency", "buy time", "stake", "sell time", "contract value", "total profit/loss"];
 
 // Expected columns from MT5 format
 const MT5_HEADERS = ["time", "type", "order", "symbol", "volume", "price", "s/l", "t/p", "profit", "balance"];
+
+// Expected columns from Binance format (Trade History export)
+const BINANCE_HEADERS = ["date(utc)", "pair", "side", "price", "executed", "amount", "fee", "total"];
 
 export function ImportTrades({ onImport }: ImportTradesProps) {
   const [open, setOpen] = useState(false);
@@ -87,12 +90,200 @@ export function ImportTrades({ onImport }: ImportTradesProps) {
     return normalizedCells.some(cell => 
       DERIV_HEADERS.includes(cell) || 
       MT5_HEADERS.includes(cell) ||
+      BINANCE_HEADERS.includes(cell) ||
       cell.includes("ref") || 
       cell.includes("stake") ||
       cell.includes("profit") ||
       cell.includes("symbol") ||
-      cell.includes("order")
+      cell.includes("order") ||
+      cell.includes("pair") ||
+      cell.includes("executed")
     );
+  };
+
+  // Parse Binance Trade History format
+  const parseBinanceData = (input: string): Trade[] => {
+    const lines = input.trim().split("\n").filter(line => line.trim());
+    if (lines.length === 0) return [];
+
+    const delimiter = detectDelimiter(input);
+    
+    console.log(`[ImportTrades] Binance parsing: ${lines.length} lines, delimiter="${delimiter === '\t' ? 'TAB' : delimiter}"`);
+
+    let parsedData: Array<{
+      date: string;
+      pair: string;
+      side: string;
+      price: number;
+      executed: number;
+      amount: number;
+      fee: number;
+      total: number;
+    }> = [];
+
+    // Find header row to detect column indices
+    let headerIndex = -1;
+    let columnMap: { [key: string]: number } = {};
+
+    for (let i = 0; i < Math.min(lines.length, 10); i++) {
+      const cells = lines[i].split(delimiter).map(c => c.trim().toLowerCase());
+      const hasDate = cells.some(c => c.includes("date") || c.includes("time"));
+      const hasPair = cells.some(c => c === "pair" || c === "market" || c === "symbol");
+      const hasSide = cells.some(c => c === "side" || c === "type");
+      
+      if (hasDate && (hasPair || hasSide)) {
+        headerIndex = i;
+        cells.forEach((cell, idx) => {
+          columnMap[cell] = idx;
+        });
+        console.log(`[ImportTrades] Binance header found at line ${i}:`, columnMap);
+        break;
+      }
+    }
+
+    // If no header found, try common Binance column order
+    if (headerIndex === -1) {
+      console.log(`[ImportTrades] No Binance header found, using default column order`);
+      // Common Binance export: Date(UTC), Pair, Side, Price, Executed, Amount, Fee
+      columnMap = {
+        "date(utc)": 0,
+        "pair": 1,
+        "side": 2,
+        "price": 3,
+        "executed": 4,
+        "amount": 5,
+        "fee": 6,
+        "total": 7
+      };
+    }
+
+    const dataLines = headerIndex >= 0 ? lines.slice(headerIndex + 1) : lines;
+    
+    // Get column indices with fallbacks
+    const dateCol = columnMap["date(utc)"] ?? columnMap["date"] ?? columnMap["time"] ?? 0;
+    const pairCol = columnMap["pair"] ?? columnMap["market"] ?? columnMap["symbol"] ?? 1;
+    const sideCol = columnMap["side"] ?? columnMap["type"] ?? 2;
+    const priceCol = columnMap["price"] ?? 3;
+    const executedCol = columnMap["executed"] ?? columnMap["filled"] ?? columnMap["qty"] ?? 4;
+    const amountCol = columnMap["amount"] ?? columnMap["total"] ?? 5;
+    const feeCol = columnMap["fee"] ?? 6;
+
+    for (const line of dataLines) {
+      const cells = line.split(delimiter).map(c => c.trim());
+      
+      if (cells.length < 4) {
+        console.log(`[ImportTrades] Binance skipping line with ${cells.length} cells`);
+        continue;
+      }
+
+      const date = cells[dateCol] || "";
+      const pair = cells[pairCol] || "";
+      const side = cells[sideCol] || "";
+      const price = parseNumber(cells[priceCol] || "0");
+      const executed = parseNumber(cells[executedCol] || "0");
+      const amount = parseNumber(cells[amountCol] || "0");
+      const fee = parseNumber(cells[feeCol] || "0");
+
+      // Skip if no pair or invalid data
+      if (!pair || (!price && !amount)) {
+        console.log(`[ImportTrades] Binance skipping: pair=${pair}, price=${price}, amount=${amount}`);
+        continue;
+      }
+
+      console.log(`[ImportTrades] Binance trade: pair=${pair}, side=${side}, amount=${amount}, price=${price}`);
+
+      parsedData.push({
+        date,
+        pair,
+        side,
+        price,
+        executed,
+        amount: amount || (executed * price),
+        fee,
+        total: amount - fee
+      });
+    }
+
+    if (parsedData.length === 0) {
+      console.log(`[ImportTrades] No Binance trades parsed`);
+      return [];
+    }
+
+    // Sort by date
+    parsedData.sort((a, b) => {
+      const dateA = parseBinanceDate(a.date);
+      const dateB = parseBinanceDate(b.date);
+      return new Date(dateA).getTime() - new Date(dateB).getTime();
+    });
+
+    // Create trades with running balance
+    const startingBalance = initialBalance && parseFloat(initialBalance) > 0 
+      ? parseFloat(initialBalance) 
+      : 1000; // Default for Binance since we don't have balance info
+    
+    let runningBalance = startingBalance;
+    const trades: Trade[] = [];
+
+    for (let i = 0; i < parsedData.length; i++) {
+      const data = parsedData[i];
+      const saldoAntes = runningBalance;
+      
+      // For Binance, calculate P&L based on buy/sell pairs or estimate
+      // Since individual trades don't have P&L, we'll use a simplified approach
+      const isBuy = data.side.toLowerCase().includes("buy") || data.side.toLowerCase().includes("compra");
+      
+      // Calculate simple P&L estimate based on fee (actual P&L requires matching trades)
+      const estimatedPnL = -data.fee; // Fee is the minimum known cost
+      
+      const saldoDespues = runningBalance + estimatedPnL;
+      runningBalance = saldoDespues;
+
+      // Determine direction
+      const direccion: "Compra" | "Venta" = isBuy ? "Compra" : "Venta";
+
+      trades.push({
+        id: `binance_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 6)}`,
+        fecha_entrada: parseBinanceDate(data.date),
+        fecha_salida: parseBinanceDate(data.date),
+        instrumento: data.pair,
+        moneda: "USDT",
+        direccion,
+        stake_usd: data.amount,
+        resultado_usd: estimatedPnL,
+        saldo_antes: saldoAntes,
+        saldo_despues: saldoDespues,
+        riesgo_pct_cuenta: saldoAntes > 0 ? (data.amount / saldoAntes) * 100 : 0,
+        resultado_pct_cuenta: saldoAntes > 0 ? (estimatedPnL / saldoAntes) * 100 : 0,
+        tf_principal: "",
+        contexto_1h: "",
+        posicion_en_canal: "",
+        tipo_setup: "",
+        entrada_por: "",
+        stop_plan_usd: 0,
+        tp_plan_usd: 0,
+        motivo_salida: "",
+        notas: `Price: ${data.price}, Qty: ${data.executed}, Fee: ${data.fee}`,
+      });
+    }
+
+    return trades;
+  };
+
+  const parseBinanceDate = (dateStr: string): string => {
+    if (!dateStr || dateStr.trim() === "") return new Date().toISOString();
+    
+    try {
+      // Handle Binance format: "2024-01-20 10:30:00" or "2024/01/20 10:30"
+      const cleaned = dateStr.trim().replace(/\//g, "-");
+      const date = new Date(cleaned);
+      if (!isNaN(date.getTime())) {
+        return date.toISOString();
+      }
+    } catch {
+      // Fall through to default
+    }
+    
+    return new Date().toISOString();
   };
 
   // Parse MT5 Account History format
@@ -551,10 +742,18 @@ export function ImportTrades({ onImport }: ImportTradesProps) {
     }
 
     // Parse based on selected platform
-    const trades = platform === "mt5" ? parseMT5Data(input) : parseTabularData(input);
+    let trades: Trade[];
+    if (platform === "mt5") {
+      trades = parseMT5Data(input);
+    } else if (platform === "binance") {
+      trades = parseBinanceData(input);
+    } else {
+      trades = parseTabularData(input);
+    }
     
+    const platformNames = { deriv: "Deriv", mt5: "MetaTrader 5", binance: "Binance" };
     if (trades.length === 0) {
-      setError(`No se encontraron trades válidos para ${platform === "mt5" ? "MetaTrader 5" : "Deriv"}. Verifica el formato.`);
+      setError(`No se encontraron trades válidos para ${platformNames[platform]}. Verifica el formato.`);
       return;
     }
 
@@ -620,7 +819,7 @@ export function ImportTrades({ onImport }: ImportTradesProps) {
                 <TooltipContent side="bottom" className="max-w-sm">
                   <p className="text-xs">
                     Copia datos directamente desde tu historial de operaciones.
-                    Soporta Deriv/Binary y MetaTrader 5.
+                    Soporta Deriv/Binary, MetaTrader 5 y Binance.
                   </p>
                 </TooltipContent>
               </Tooltip>
@@ -639,6 +838,7 @@ export function ImportTrades({ onImport }: ImportTradesProps) {
               <SelectContent>
                 <SelectItem value="deriv">Deriv / Binary</SelectItem>
                 <SelectItem value="mt5">MetaTrader 5</SelectItem>
+                <SelectItem value="binance">Binance</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -710,6 +910,12 @@ export function ImportTrades({ onImport }: ImportTradesProps) {
 Formato esperado:
 Time	Type	Order	Symbol	Volume	Price	S/L	T/P	Profit	Balance
 2024.01.20 10:30:00	buy	123456	EURUSD	0.10	1.08500	1.08000	1.09000	125.50	5125.50`
+              : platform === "binance"
+              ? `Pega aquí tus trades exportados desde Binance (Trade History).
+
+Formato esperado:
+Date(UTC)	Pair	Side	Price	Executed	Amount	Fee
+2024-01-20 10:30:00	BTCUSDT	BUY	42500.00	0.001	42.50	0.0425`
               : `Pega aquí tus trades copiados desde Deriv.
 
 Formato esperado:
