@@ -11,6 +11,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ClipboardPaste, Plus, Check, AlertCircle, X, HelpCircle, DollarSign } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -24,8 +31,13 @@ interface ImportTradesProps {
   onImport: (trades: Trade[]) => void;
 }
 
+type PlatformType = "deriv" | "mt5";
+
 // Expected columns from Deriv format
 const DERIV_HEADERS = ["type", "ref. id", "currency", "buy time", "stake", "sell time", "contract value", "total profit/loss"];
+
+// Expected columns from MT5 format
+const MT5_HEADERS = ["time", "type", "order", "symbol", "volume", "price", "s/l", "t/p", "profit", "balance"];
 
 export function ImportTrades({ onImport }: ImportTradesProps) {
   const [open, setOpen] = useState(false);
@@ -33,6 +45,7 @@ export function ImportTrades({ onImport }: ImportTradesProps) {
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<Trade[]>([]);
   const [initialBalance, setInitialBalance] = useState<string>("");
+  const [platform, setPlatform] = useState<PlatformType>("deriv");
 
   const detectDelimiter = (text: string): string => {
     const firstLine = text.split("\n")[0];
@@ -73,10 +86,200 @@ export function ImportTrades({ onImport }: ImportTradesProps) {
     const normalizedCells = cells.map(c => c.toLowerCase().trim());
     return normalizedCells.some(cell => 
       DERIV_HEADERS.includes(cell) || 
+      MT5_HEADERS.includes(cell) ||
       cell.includes("ref") || 
       cell.includes("stake") ||
-      cell.includes("profit")
+      cell.includes("profit") ||
+      cell.includes("symbol") ||
+      cell.includes("order")
     );
+  };
+
+  // Parse MT5 Account History format
+  const parseMT5Data = (input: string): Trade[] => {
+    const lines = input.trim().split("\n").filter(line => line.trim());
+    if (lines.length === 0) return [];
+
+    const delimiter = detectDelimiter(input);
+    
+    console.log(`[ImportTrades] MT5 parsing: ${lines.length} lines, delimiter="${delimiter === '\t' ? 'TAB' : delimiter}"`);
+
+    let parsedData: Array<{
+      order: string;
+      symbol: string;
+      type: string;
+      volume: number;
+      price: number;
+      profit: number;
+      time: string;
+      balance: number;
+    }> = [];
+
+    // Find header row to detect column indices
+    let headerIndex = -1;
+    let columnMap: { [key: string]: number } = {};
+
+    for (let i = 0; i < Math.min(lines.length, 10); i++) {
+      const cells = lines[i].split(delimiter).map(c => c.trim().toLowerCase());
+      const hasTime = cells.some(c => c === "time" || c === "fecha" || c === "hora");
+      const hasSymbol = cells.some(c => c === "symbol" || c === "símbolo");
+      const hasProfit = cells.some(c => c === "profit" || c === "beneficio" || c === "ganancia");
+      
+      if ((hasTime && hasSymbol) || (hasSymbol && hasProfit)) {
+        headerIndex = i;
+        cells.forEach((cell, idx) => {
+          columnMap[cell] = idx;
+        });
+        console.log(`[ImportTrades] MT5 header found at line ${i}:`, columnMap);
+        break;
+      }
+    }
+
+    // If no header found, try common MT5 column order
+    if (headerIndex === -1) {
+      console.log(`[ImportTrades] No MT5 header found, using default column order`);
+      // Default MT5 order: Time, Type, Order, Symbol, Volume, Price, S/L, T/P, Profit, Balance
+      columnMap = {
+        "time": 0,
+        "type": 1,
+        "order": 2,
+        "symbol": 3,
+        "volume": 4,
+        "price": 5,
+        "s/l": 6,
+        "t/p": 7,
+        "profit": 8,
+        "balance": 9
+      };
+    }
+
+    const dataLines = headerIndex >= 0 ? lines.slice(headerIndex + 1) : lines;
+    
+    // Get column indices with fallbacks
+    const timeCol = columnMap["time"] ?? columnMap["fecha"] ?? 0;
+    const typeCol = columnMap["type"] ?? columnMap["tipo"] ?? 1;
+    const orderCol = columnMap["order"] ?? columnMap["orden"] ?? 2;
+    const symbolCol = columnMap["symbol"] ?? columnMap["símbolo"] ?? 3;
+    const volumeCol = columnMap["volume"] ?? columnMap["volumen"] ?? 4;
+    const priceCol = columnMap["price"] ?? columnMap["precio"] ?? 5;
+    const profitCol = columnMap["profit"] ?? columnMap["beneficio"] ?? columnMap["ganancia"] ?? 8;
+    const balanceCol = columnMap["balance"] ?? columnMap["saldo"] ?? 9;
+
+    for (const line of dataLines) {
+      const cells = line.split(delimiter).map(c => c.trim());
+      
+      if (cells.length < 5) {
+        console.log(`[ImportTrades] MT5 skipping line with ${cells.length} cells`);
+        continue;
+      }
+
+      const time = cells[timeCol] || "";
+      const type = cells[typeCol] || "";
+      const order = cells[orderCol] || "";
+      const symbol = cells[symbolCol] || "";
+      const volume = parseNumber(cells[volumeCol] || "0");
+      const price = parseNumber(cells[priceCol] || "0");
+      const profit = parseNumber(cells[profitCol] || "0");
+      const balance = parseNumber(cells[balanceCol] || "0");
+
+      // Filter: only include actual trades (buy/sell), skip deposits/withdrawals/balance operations
+      const typeNorm = type.toLowerCase();
+      const isTrade = typeNorm.includes("buy") || typeNorm.includes("sell") || 
+                      typeNorm.includes("compra") || typeNorm.includes("venta");
+      
+      // Skip if no symbol or looks like a non-trade entry
+      if (!symbol || symbol.toLowerCase() === "balance" || !isTrade) {
+        console.log(`[ImportTrades] MT5 skipping non-trade: type=${type}, symbol=${symbol}`);
+        continue;
+      }
+
+      console.log(`[ImportTrades] MT5 trade: order=${order}, symbol=${symbol}, profit=${profit}`);
+
+      parsedData.push({
+        order: order || `mt5_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        symbol,
+        type,
+        volume,
+        price,
+        profit,
+        time,
+        balance
+      });
+    }
+
+    if (parsedData.length === 0) {
+      console.log(`[ImportTrades] No MT5 trades parsed`);
+      return [];
+    }
+
+    // Sort by time
+    parsedData.sort((a, b) => {
+      const dateA = parseMT5Date(a.time);
+      const dateB = parseMT5Date(b.time);
+      return new Date(dateA).getTime() - new Date(dateB).getTime();
+    });
+
+    // Create trades with running balance
+    const startingBalance = initialBalance && parseFloat(initialBalance) > 0 
+      ? parseFloat(initialBalance) 
+      : (parsedData[0].balance > 0 ? parsedData[0].balance - parsedData[0].profit : 1000);
+    
+    let runningBalance = startingBalance;
+    const trades: Trade[] = [];
+
+    for (const data of parsedData) {
+      const saldoAntes = runningBalance;
+      const saldoDespues = runningBalance + data.profit;
+      runningBalance = saldoDespues;
+
+      // Determine direction
+      const typeNorm = data.type.toLowerCase();
+      const direccion: "Compra" | "Venta" = 
+        typeNorm.includes("buy") || typeNorm.includes("compra") ? "Compra" : "Venta";
+
+      trades.push({
+        id: data.order,
+        fecha_entrada: parseMT5Date(data.time),
+        fecha_salida: parseMT5Date(data.time), // MT5 history shows close time
+        instrumento: data.symbol,
+        moneda: "USD",
+        direccion,
+        stake_usd: data.volume * 100000 * 0.01, // Approximate lot value
+        resultado_usd: data.profit,
+        saldo_antes: saldoAntes,
+        saldo_despues: saldoDespues,
+        riesgo_pct_cuenta: 0,
+        resultado_pct_cuenta: saldoAntes > 0 ? (data.profit / saldoAntes) * 100 : 0,
+        tf_principal: "",
+        contexto_1h: "",
+        posicion_en_canal: "",
+        tipo_setup: "",
+        entrada_por: "",
+        stop_plan_usd: 0,
+        tp_plan_usd: 0,
+        motivo_salida: "",
+        notas: `Vol: ${data.volume}, Price: ${data.price}`,
+      });
+    }
+
+    return trades;
+  };
+
+  const parseMT5Date = (dateStr: string): string => {
+    if (!dateStr || dateStr.trim() === "") return new Date().toISOString();
+    
+    try {
+      // Handle MT5 format: "2024.01.20 10:30:00" or "2024/01/20 10:30"
+      const cleaned = dateStr.trim().replace(/\./g, "-").replace(/\//g, "-");
+      const date = new Date(cleaned);
+      if (!isNaN(date.getTime())) {
+        return date.toISOString();
+      }
+    } catch {
+      // Fall through to default
+    }
+    
+    return new Date().toISOString();
   };
 
   const parseTabularData = (input: string): Trade[] => {
@@ -347,23 +550,23 @@ export function ImportTrades({ onImport }: ImportTradesProps) {
       // Not JSON, continue to tabular parsing
     }
 
-    // Parse as tabular data (Deriv format)
-    const trades = parseTabularData(input);
+    // Parse based on selected platform
+    const trades = platform === "mt5" ? parseMT5Data(input) : parseTabularData(input);
     
     if (trades.length === 0) {
-      setError("No se encontraron trades válidos. Verifica el formato de los datos.");
+      setError(`No se encontraron trades válidos para ${platform === "mt5" ? "MetaTrader 5" : "Deriv"}. Verifica el formato.`);
       return;
     }
 
     setPreview(trades);
   };
 
-  // Re-parse when initial balance changes
+  // Re-parse when initial balance or platform changes
   useEffect(() => {
     if (textInput.trim()) {
       parseInput(textInput);
     }
-  }, [initialBalance]);
+  }, [initialBalance, platform]);
 
   const handlePaste = async () => {
     try {
@@ -416,8 +619,8 @@ export function ImportTrades({ onImport }: ImportTradesProps) {
                 </TooltipTrigger>
                 <TooltipContent side="bottom" className="max-w-sm">
                   <p className="text-xs">
-                    Copia datos directamente desde tu historial de Deriv.
-                    Formato: Type, Ref. ID, Currency, Buy time, Stake, Sell time, Contract value, Total profit/loss
+                    Copia datos directamente desde tu historial de operaciones.
+                    Soporta Deriv/Binary y MetaTrader 5.
                   </p>
                 </TooltipContent>
               </Tooltip>
@@ -426,6 +629,20 @@ export function ImportTrades({ onImport }: ImportTradesProps) {
         </DialogHeader>
 
         <div className="space-y-4">
+          {/* Platform Selector */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Plataforma</Label>
+            <Select value={platform} onValueChange={(v) => setPlatform(v as PlatformType)}>
+              <SelectTrigger className="w-full bg-background border-border">
+                <SelectValue placeholder="Selecciona plataforma" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="deriv">Deriv / Binary</SelectItem>
+                <SelectItem value="mt5">MetaTrader 5</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           {/* Initial Balance Input */}
           <div className="space-y-2">
             <Label htmlFor="initialBalance" className="flex items-center gap-2 text-sm font-medium">
@@ -487,7 +704,13 @@ export function ImportTrades({ onImport }: ImportTradesProps) {
               setTextInput(e.target.value);
               parseInput(e.target.value);
             }}
-            placeholder={`Pega aquí tus trades copiados desde Deriv.
+            placeholder={platform === "mt5" 
+              ? `Pega aquí tus trades copiados desde MetaTrader 5 (Account History).
+
+Formato esperado:
+Time	Type	Order	Symbol	Volume	Price	S/L	T/P	Profit	Balance
+2024.01.20 10:30:00	buy	123456	EURUSD	0.10	1.08500	1.08000	1.09000	125.50	5125.50`
+              : `Pega aquí tus trades copiados desde Deriv.
 
 Formato esperado:
 Type	Ref. ID	Currency	Buy time	Stake	Sell time	Contract value	Total profit/loss
