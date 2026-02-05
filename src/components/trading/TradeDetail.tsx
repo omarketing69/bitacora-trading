@@ -43,14 +43,27 @@ interface TradeDetailProps {
 export function TradeDetail({ trade, open, onClose, onUpdate }: TradeDetailProps) {
   const [isEditingMotivo, setIsEditingMotivo] = useState(false);
   const [isEditingNotas, setIsEditingNotas] = useState(false);
+  const [isEditingTipoActivo, setIsEditingTipoActivo] = useState(false);
+  const [isEditingDireccion, setIsEditingDireccion] = useState(false);
+  const [isEditingEntradaPor, setIsEditingEntradaPor] = useState(false);
+  const [isEditingContexto, setIsEditingContexto] = useState(false);
+  
   const [motivoSalida, setMotivoSalida] = useState("");
   const [notas, setNotas] = useState("");
+  const [tipoActivo, setTipoActivo] = useState("");
+  const [direccion, setDireccion] = useState<"Compra" | "Venta">("Compra");
+  const [entradaPor, setEntradaPor] = useState("");
+  const [contexto1h, setContexto1h] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (trade) {
       setMotivoSalida(trade.motivo_salida || "");
       setNotas(trade.notas || "");
+      setTipoActivo(trade.posicion_en_canal || "");
+      setDireccion(trade.direccion);
+      setEntradaPor(trade.entrada_por || "");
+      setContexto1h(trade.contexto_1h || "");
     }
   }, [trade]);
 
@@ -78,6 +91,46 @@ export function TradeDetail({ trade, open, onClose, onUpdate }: TradeDetailProps
     }
   };
 
+  const handleSaveTipoActivo = async () => {
+    if (!onUpdate) return;
+    setIsSaving(true);
+    const success = await onUpdate(trade.id, { posicion_en_canal: tipoActivo });
+    setIsSaving(false);
+    if (success) {
+      setIsEditingTipoActivo(false);
+    }
+  };
+
+  const handleSaveDireccion = async () => {
+    if (!onUpdate) return;
+    setIsSaving(true);
+    const success = await onUpdate(trade.id, { direccion });
+    setIsSaving(false);
+    if (success) {
+      setIsEditingDireccion(false);
+    }
+  };
+
+  const handleSaveEntradaPor = async () => {
+    if (!onUpdate) return;
+    setIsSaving(true);
+    const success = await onUpdate(trade.id, { entrada_por: entradaPor });
+    setIsSaving(false);
+    if (success) {
+      setIsEditingEntradaPor(false);
+    }
+  };
+
+  const handleSaveContexto = async () => {
+    if (!onUpdate) return;
+    setIsSaving(true);
+    const success = await onUpdate(trade.id, { contexto_1h: contexto1h });
+    setIsSaving(false);
+    if (success) {
+      setIsEditingContexto(false);
+    }
+  };
+
   const handleCancelMotivo = () => {
     setMotivoSalida(trade.motivo_salida || "");
     setIsEditingMotivo(false);
@@ -86,6 +139,26 @@ export function TradeDetail({ trade, open, onClose, onUpdate }: TradeDetailProps
   const handleCancelNotas = () => {
     setNotas(trade.notas || "");
     setIsEditingNotas(false);
+  };
+
+  const handleCancelTipoActivo = () => {
+    setTipoActivo(trade.posicion_en_canal || "");
+    setIsEditingTipoActivo(false);
+  };
+
+  const handleCancelDireccion = () => {
+    setDireccion(trade.direccion);
+    setIsEditingDireccion(false);
+  };
+
+  const handleCancelEntradaPor = () => {
+    setEntradaPor(trade.entrada_por || "");
+    setIsEditingEntradaPor(false);
+  };
+
+  const handleCancelContexto = () => {
+    setContexto1h(trade.contexto_1h || "");
+    setIsEditingContexto(false);
   };
 
   return (
@@ -239,24 +312,211 @@ export function TradeDetail({ trade, open, onClose, onUpdate }: TradeDetailProps
           {/* Technical Analysis */}
           <div>
             <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-              Análisis Técnico
+              Información del Trade
             </h4>
             <div className="grid grid-cols-2 gap-3">
+              {/* Tipo de Activo (usando posicion_en_canal) */}
               <div className="stat-card">
-                <p className="text-xs text-muted-foreground">Contexto 1H</p>
-                <p className="text-sm">{trade.contexto_1h}</p>
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-xs text-muted-foreground">Tipo de Activo</p>
+                  {onUpdate && !isEditingTipoActivo && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setIsEditingTipoActivo(true)}
+                      className="h-5 w-5 p-0"
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </Button>
+                  )}
+                </div>
+                {isEditingTipoActivo ? (
+                  <div className="flex items-center gap-1">
+                    <Input
+                      value={tipoActivo}
+                      onChange={(e) => setTipoActivo(e.target.value)}
+                      placeholder="Ej: Boom 1000, Crash 1000..."
+                      className="h-7 text-xs"
+                      disabled={isSaving}
+                    />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleSaveTipoActivo}
+                      disabled={isSaving}
+                      className="h-7 w-7 p-0 text-success hover:text-success"
+                    >
+                      <Check className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleCancelTipoActivo}
+                      disabled={isSaving}
+                      className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ) : (
+                  <p className="text-sm font-medium">{trade.posicion_en_canal || "Sin especificar"}</p>
+                )}
               </div>
+
+              {/* Dirección (Compra/Venta) */}
               <div className="stat-card">
-                <p className="text-xs text-muted-foreground">Posición Canal</p>
-                <p className="text-sm">{trade.posicion_en_canal}</p>
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-xs text-muted-foreground">Dirección</p>
+                  {onUpdate && !isEditingDireccion && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setIsEditingDireccion(true)}
+                      className="h-5 w-5 p-0"
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </Button>
+                  )}
+                </div>
+                {isEditingDireccion ? (
+                  <div className="flex items-center gap-1">
+                    <select
+                      value={direccion}
+                      onChange={(e) => setDireccion(e.target.value as "Compra" | "Venta")}
+                      className="h-7 text-xs rounded-md border border-input bg-background px-2 flex-1"
+                      disabled={isSaving}
+                    >
+                      <option value="Compra">Compra</option>
+                      <option value="Venta">Venta</option>
+                    </select>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleSaveDireccion}
+                      disabled={isSaving}
+                      className="h-7 w-7 p-0 text-success hover:text-success"
+                    >
+                      <Check className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleCancelDireccion}
+                      disabled={isSaving}
+                      className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ) : (
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "font-medium",
+                      trade.direccion === "Compra"
+                        ? "border-success/50 text-success"
+                        : "border-destructive/50 text-destructive"
+                    )}
+                  >
+                    {trade.direccion}
+                  </Badge>
+                )}
               </div>
+
+              {/* Entrada Por */}
               <div className="stat-card">
-                <p className="text-xs text-muted-foreground">Tipo Setup</p>
-                <p className="text-sm font-medium">{trade.tipo_setup}</p>
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-xs text-muted-foreground">Entrada Por</p>
+                  {onUpdate && !isEditingEntradaPor && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setIsEditingEntradaPor(true)}
+                      className="h-5 w-5 p-0"
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </Button>
+                  )}
+                </div>
+                {isEditingEntradaPor ? (
+                  <div className="flex items-center gap-1">
+                    <Input
+                      value={entradaPor}
+                      onChange={(e) => setEntradaPor(e.target.value)}
+                      placeholder="Ej: Vela de tren, Spike..."
+                      className="h-7 text-xs"
+                      disabled={isSaving}
+                    />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleSaveEntradaPor}
+                      disabled={isSaving}
+                      className="h-7 w-7 p-0 text-success hover:text-success"
+                    >
+                      <Check className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleCancelEntradaPor}
+                      disabled={isSaving}
+                      className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ) : (
+                  <p className="text-sm">{trade.entrada_por || "Sin especificar"}</p>
+                )}
               </div>
+
+              {/* Contexto 1H */}
               <div className="stat-card">
-                <p className="text-xs text-muted-foreground">Entrada Por</p>
-                <p className="text-sm">{trade.entrada_por}</p>
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-xs text-muted-foreground">Contexto / Notas Técnicas</p>
+                  {onUpdate && !isEditingContexto && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setIsEditingContexto(true)}
+                      className="h-5 w-5 p-0"
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </Button>
+                  )}
+                </div>
+                {isEditingContexto ? (
+                  <div className="flex items-center gap-1">
+                    <Input
+                      value={contexto1h}
+                      onChange={(e) => setContexto1h(e.target.value)}
+                      placeholder="Contexto técnico..."
+                      className="h-7 text-xs"
+                      disabled={isSaving}
+                    />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleSaveContexto}
+                      disabled={isSaving}
+                      className="h-7 w-7 p-0 text-success hover:text-success"
+                    >
+                      <Check className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleCancelContexto}
+                      disabled={isSaving}
+                      className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ) : (
+                  <p className="text-sm">{trade.contexto_1h || "Sin especificar"}</p>
+                )}
               </div>
             </div>
           </div>
