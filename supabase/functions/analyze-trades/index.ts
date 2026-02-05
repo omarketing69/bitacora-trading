@@ -337,11 +337,17 @@ serve(async (req) => {
     };
 
     // Prepare trades data for analysis
+    // IMPORTANTE: posicion_en_canal se usa para el TIPO DE ACTIVO (Boom 1000, Crash 500, etc.)
     const tradesContext = trades.map((t: any, i: number) => {
+      // El tipo de activo viene en posicion_en_canal (ej: "Boom 1000", "Crash 500")
+      // El instrumento puede tener el apalancamiento (ej: "Boom 1000 Index X500")
+      const tipoActivo = t.posicion_en_canal || 'No especificado';
+      
       const base = `Trade ${i + 1}:
 - Fecha: ${t.fecha_entrada} a ${t.fecha_salida}
-- Instrumento: ${t.instrumento}
-- Dirección: ${t.direccion}
+- Instrumento completo: ${t.instrumento}
+- TIPO DE ACTIVO: ${tipoActivo} (ESTE ES EL ACTIVO REAL - Boom o Crash)
+- DIRECCIÓN: ${t.direccion} (Compra o Venta)
 - Stake: $${t.stake_usd}
 - Resultado: $${t.resultado_usd} (${t.resultado_pct_cuenta?.toFixed(2) || 'N/A'}%)
 - Riesgo cuenta: ${t.riesgo_pct_cuenta?.toFixed(2) || 'N/A'}%
@@ -349,7 +355,7 @@ serve(async (req) => {
 
       if (analysisType === "errors") {
         return `${base}
-- Setup: ${t.tipo_setup || 'No especificado'}
+- Contexto técnico: ${t.contexto_1h || 'No especificado'}
 - Entrada por: ${t.entrada_por || 'No especificado'}
 - Motivo salida: ${t.motivo_salida || 'No especificado'}
 - Notas: ${t.notas || 'Sin notas'}`;
