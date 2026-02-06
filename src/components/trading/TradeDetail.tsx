@@ -169,10 +169,10 @@ export function TradeDetail({ trade, open, onClose, onUpdate }: TradeDetailProps
             <div
               className={cn(
                 "p-2 rounded-lg",
-                trade.direccion === "Compra" ? "profit-bg" : "loss-bg"
+                direccion === "Compra" ? "profit-bg" : "loss-bg"
               )}
             >
-              {trade.direccion === "Compra" ? (
+              {direccion === "Compra" ? (
                 <ArrowUpRight className="h-6 w-6 profit-text" />
               ) : (
                 <ArrowDownRight className="h-6 w-6 loss-text" />
@@ -186,12 +186,12 @@ export function TradeDetail({ trade, open, onClose, onUpdate }: TradeDetailProps
                 <Badge
                   variant="outline"
                   className={cn(
-                    trade.direccion === "Compra"
+                    direccion === "Compra"
                       ? "border-success/50 text-success"
                       : "border-destructive/50 text-destructive"
                   )}
                 >
-                  {trade.direccion}
+                  {direccion}
                 </Badge>
                 <Badge variant="secondary">{trade.tf_principal}</Badge>
                 <span className="text-xs text-muted-foreground font-mono">
@@ -359,7 +359,7 @@ export function TradeDetail({ trade, open, onClose, onUpdate }: TradeDetailProps
                     </Button>
                   </div>
                 ) : (
-                  <p className="text-sm font-medium">{trade.posicion_en_canal || "Sin especificar"}</p>
+                  <p className="text-sm font-medium">{tipoActivo || "Sin especificar"}</p>
                 )}
               </div>
 
@@ -413,12 +413,12 @@ export function TradeDetail({ trade, open, onClose, onUpdate }: TradeDetailProps
                     variant="outline"
                     className={cn(
                       "font-medium",
-                      trade.direccion === "Compra"
+                      direccion === "Compra"
                         ? "border-success/50 text-success"
                         : "border-destructive/50 text-destructive"
                     )}
                   >
-                    {trade.direccion}
+                    {direccion}
                   </Badge>
                 )}
               </div>
@@ -467,7 +467,7 @@ export function TradeDetail({ trade, open, onClose, onUpdate }: TradeDetailProps
                     </Button>
                   </div>
                 ) : (
-                  <p className="text-sm">{trade.entrada_por || "Sin especificar"}</p>
+                  <p className="text-sm">{entradaPor || "Sin especificar"}</p>
                 )}
               </div>
 
@@ -515,7 +515,7 @@ export function TradeDetail({ trade, open, onClose, onUpdate }: TradeDetailProps
                     </Button>
                   </div>
                 ) : (
-                  <p className="text-sm">{trade.contexto_1h || "Sin especificar"}</p>
+                  <p className="text-sm">{contexto1h || "Sin especificar"}</p>
                 )}
               </div>
             </div>
@@ -583,7 +583,7 @@ export function TradeDetail({ trade, open, onClose, onUpdate }: TradeDetailProps
                     : "border-destructive/50 text-destructive"
                 )}
               >
-                {trade.motivo_salida || "Sin especificar"}
+                {motivoSalida || "Sin especificar"}
               </Badge>
             )}
           </div>
@@ -642,7 +642,7 @@ export function TradeDetail({ trade, open, onClose, onUpdate }: TradeDetailProps
               </div>
             ) : (
               <p className="text-sm text-foreground leading-relaxed">
-                {trade.notas || "Sin notas"}
+                {notas || "Sin notas"}
               </p>
             )}
           </div>
