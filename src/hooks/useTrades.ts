@@ -125,12 +125,31 @@ export function useTrades() {
       return false;
     }
 
+    // Build update object with only the fields that were provided
+    const updateData: Record<string, unknown> = {};
+    
+    if ('motivo_salida' in updates) {
+      updateData.motivo_salida = updates.motivo_salida || null;
+    }
+    if ('notas' in updates) {
+      updateData.notas = updates.notas || null;
+    }
+    if ('posicion_en_canal' in updates) {
+      updateData.posicion_en_canal = updates.posicion_en_canal || null;
+    }
+    if ('direccion' in updates) {
+      updateData.direccion = updates.direccion;
+    }
+    if ('entrada_por' in updates) {
+      updateData.entrada_por = updates.entrada_por || null;
+    }
+    if ('contexto_1h' in updates) {
+      updateData.contexto_1h = updates.contexto_1h || null;
+    }
+
     const { error } = await supabase
       .from("trades")
-      .update({
-        motivo_salida: updates.motivo_salida ?? null,
-        notas: updates.notas ?? null,
-      })
+      .update(updateData)
       .eq("id", tradeId);
 
     if (error) {
