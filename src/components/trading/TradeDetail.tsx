@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Trade } from "@/types/trade";
 import {
   formatCurrency,
@@ -55,17 +55,26 @@ export function TradeDetail({ trade, open, onClose, onUpdate }: TradeDetailProps
   const [entradaPor, setEntradaPor] = useState("");
   const [contexto1h, setContexto1h] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  
+  // Track which trade we've synced to, only sync when opening a different trade
+  const syncedTradeId = useRef<string | null>(null);
 
   useEffect(() => {
-    if (trade) {
+    // Only sync local state when opening the dialog with a different trade
+    if (trade && open && syncedTradeId.current !== trade.id) {
       setMotivoSalida(trade.motivo_salida || "");
       setNotas(trade.notas || "");
       setTipoActivo(trade.posicion_en_canal || "");
       setDireccion(trade.direccion);
       setEntradaPor(trade.entrada_por || "");
       setContexto1h(trade.contexto_1h || "");
+      syncedTradeId.current = trade.id;
     }
-  }, [trade]);
+    // Reset synced trade when dialog closes
+    if (!open) {
+      syncedTradeId.current = null;
+    }
+  }, [trade, open]);
 
   if (!trade) return null;
 
