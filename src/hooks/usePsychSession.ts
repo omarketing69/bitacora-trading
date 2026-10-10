@@ -68,6 +68,8 @@ export function usePsychSession(trades: Trade[], refetchTrades: () => Promise<vo
   const [history, setHistory] = useState<PsychSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  /** true si las tablas del entrenador aún no existen en Supabase (migración sin aplicar). */
+  const [dbPendiente, setDbPendiente] = useState(false);
 
   const load = useCallback(async () => {
     if (!user) {
@@ -83,8 +85,12 @@ export function usePsychSession(trades: Trade[], refetchTrades: () => Promise<vo
       .limit(60);
     if (error) {
       console.error("Error cargando sesiones:", error);
-      toast.error("No se pudieron cargar las sesiones del entrenador");
+      const faltaTabla =
+        error.code === "PGRST205" || error.code === "42P01" || /psych_sessions/i.test(error.message ?? "");
+      if (faltaTabla) setDbPendiente(true);
+      else toast.error("No se pudieron cargar las sesiones del entrenador");
     } else {
+      setDbPendiente(false);
       const rows = data ?? [];
       setHistory(rows);
       setSession(rows.find((s) => !s.cerrada_en) ?? null);
@@ -274,6 +280,7 @@ export function usePsychSession(trades: Trade[], refetchTrades: () => Promise<vo
     history,
     loading,
     busy,
+    dbPendiente,
     sessionTrades,
     saldoActual,
     startSession,

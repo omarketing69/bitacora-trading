@@ -5,6 +5,22 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Trade } from "@/types/trade";
 import { toast } from "sonner";
 
+const CAMPOS_BINARIAS = [
+  "plataforma", "broker", "modo", "origen", "bot", "estrategia", "categoria_estrategia", "senal",
+  "payout_pct", "expiracion_seg", "precio_entrada", "precio_cierre", "estado", "ciclo_id", "paso",
+  "tipo_paso", "id_externo", "ema_senal", "contexto_15m", "estado_emocional", "intensidad_emocional",
+  "cumplio_reglas", "sesion_id",
+] as const;
+
+function soloDefinidos(t: Trade): Partial<Database["public"]["Tables"]["trades"]["Insert"]> {
+  const out: Record<string, unknown> = {};
+  for (const campo of CAMPOS_BINARIAS) {
+    const v = t[campo];
+    if (v !== undefined && v !== null && v !== "") out[campo] = v;
+  }
+  return out as Partial<Database["public"]["Tables"]["trades"]["Insert"]>;
+}
+
 export function useTrades() {
   const { user } = useAuth();
   const [trades, setTrades] = useState<Trade[]>([]);
@@ -113,29 +129,9 @@ export function useTrades() {
       tp_plan_usd: t.tp_plan_usd || null,
       motivo_salida: t.motivo_salida || null,
       notas: t.notas || null,
-      plataforma: t.plataforma || "Deriv",
-      broker: t.broker ?? null,
-      modo: t.modo ?? null,
-      origen: t.origen ?? null,
-      bot: t.bot ?? null,
-      estrategia: t.estrategia ?? null,
-      categoria_estrategia: t.categoria_estrategia ?? null,
-      senal: t.senal ?? null,
-      payout_pct: t.payout_pct ?? null,
-      expiracion_seg: t.expiracion_seg ?? null,
-      precio_entrada: t.precio_entrada ?? null,
-      precio_cierre: t.precio_cierre ?? null,
-      estado: t.estado ?? null,
-      ciclo_id: t.ciclo_id ?? null,
-      paso: t.paso ?? null,
-      tipo_paso: t.tipo_paso ?? null,
-      id_externo: t.id_externo ?? null,
-      ema_senal: t.ema_senal ?? null,
-      contexto_15m: t.contexto_15m ?? null,
-      estado_emocional: t.estado_emocional ?? null,
-      intensidad_emocional: t.intensidad_emocional ?? null,
-      cumplio_reglas: t.cumplio_reglas ?? null,
-      sesion_id: t.sesion_id ?? null,
+      // Campos nuevos solo si vienen con valor: así el importador sigue funcionando
+      // aunque la migración de IQ Option aún no se haya aplicado en Supabase.
+      ...soloDefinidos(t),
     }));
 
     const { error } = await supabase

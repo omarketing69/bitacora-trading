@@ -76,6 +76,25 @@ export function PsychCoach({ trades, refetch }: Props) {
     );
   }
 
+  if (ps.dbPendiente) {
+    return (
+      <div className="bg-card border border-border rounded-lg p-6 space-y-3">
+        <div className="flex items-center gap-2">
+          <Brain className="h-5 w-5 text-primary" />
+          <h2 className="font-semibold">Falta activar el entrenador en la base de datos</h2>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          El código del entrenador ya está instalado, pero tu base de datos todavía no tiene las tablas nuevas. Tu
+          bitácora sigue funcionando normal mientras tanto.
+        </p>
+        <p className="text-sm text-muted-foreground">
+          Para activarlo, pídele a Lovable: <span className="text-foreground">"Aplica la migración
+          supabase/migrations/20261010180000_iq_option_psychotrading.sql"</span>.
+        </p>
+      </div>
+    );
+  }
+
   if (!session) {
     const ultimoSaldo = trades.find((t) => t.plataforma === "IQ Option" && t.estado !== ESTADO_ABIERTA)?.saldo_despues ?? 0;
     return <PreSessionChecklist busy={ps.busy} saldoSugerido={ultimoSaldo} onStart={ps.startSession} />;
