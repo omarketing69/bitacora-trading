@@ -9,6 +9,9 @@ import { AIAnalysis } from "./AIAnalysis";
 import { ChangePassword } from "@/components/ChangePassword";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTrades } from "@/hooks/useTrades";
+import { PsychCoach } from "@/components/psych/PsychCoach";
+import { PsychStats } from "@/components/psych/PsychStats";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   TrendingUp,
   Target,
@@ -38,9 +41,11 @@ import {
 
 export function Dashboard() {
   const { user, signOut } = useAuth();
-  const { trades, loading, importTrades, updateTrade, deleteAllTrades } = useTrades();
+  const { trades, loading, importTrades, updateTrade, deleteAllTrades, refetch } = useTrades();
   const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null);
-  const stats = calculateTradeStats(trades);
+  // Las entradas abiertas del entrenador aún no tienen resultado: no cuentan en las estadísticas.
+  const closedTrades = trades.filter((t) => t.estado !== "abierta");
+  const stats = calculateTradeStats(closedTrades);
 
   if (loading) {
     return (
@@ -128,7 +133,23 @@ export function Dashboard() {
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-6 space-y-6">
+      <main className="container mx-auto px-4 py-6">
+        <Tabs defaultValue="entrenador" className="space-y-6">
+          <TabsList>
+            <TabsTrigger value="entrenador">Entrenador</TabsTrigger>
+            <TabsTrigger value="bitacora">Bitácora</TabsTrigger>
+            <TabsTrigger value="disciplina">Disciplina</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="entrenador">
+            <PsychCoach trades={trades} refetch={refetch} />
+          </TabsContent>
+
+          <TabsContent value="disciplina">
+            <PsychStats trades={trades} />
+          </TabsContent>
+
+          <TabsContent value="bitacora" className="space-y-6">
         {/* Stats Grid */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
           <StatCard
@@ -202,6 +223,8 @@ export function Dashboard() {
             )}
           </ScrollArea>
         </div>
+          </TabsContent>
+        </Tabs>
       </main>
 
       {/* Trade Detail Modal */}

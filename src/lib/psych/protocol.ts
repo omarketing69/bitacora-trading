@@ -205,5 +205,51 @@ export function resumirPasos(ciclos: Ciclo[]): ResumenPasos {
   };
 }
 
+export interface FilaEmocion {
+  emocion: string;
+  operaciones: number;
+  winRate: number;
+  resultado: number;
+}
+
+/** Rendimiento según el estado emocional registrado antes de entrar. */
+export function resultadosPorEmocion(trades: Trade[]): FilaEmocion[] {
+  const grupos = new Map<string, Trade[]>();
+  for (const t of trades) {
+    if (!t.estado_emocional || estadoDe(t) === "empate") continue;
+    grupos.set(t.estado_emocional, [...(grupos.get(t.estado_emocional) ?? []), t]);
+  }
+  return [...grupos.entries()]
+    .map(([emocion, lista]) => ({
+      emocion,
+      operaciones: lista.length,
+      winRate: round2((lista.filter((t) => estadoDe(t) === "ganada").length / lista.length) * 100),
+      resultado: round2(lista.reduce((s, t) => s + t.resultado_usd, 0)),
+    }))
+    .sort((a, b) => b.operaciones - a.operaciones);
+}
+
+export interface Cumplimiento {
+  conReglas: Expectativa;
+  sinReglas: Expectativa;
+  porcentajeCumplimiento: number;
+}
+
+/** Compara las entradas que cumplían tus reglas con las que no. */
+export function compararCumplimiento(trades: Trade[]): Cumplimiento {
+  const evaluadas = trades.filter((t) => t.cumplio_reglas === true || t.cumplio_reglas === false);
+  const con = evaluadas.filter((t) => t.cumplio_reglas === true);
+  return {
+    conReglas: calcularExpectativa(con),
+    sinReglas: calcularExpectativa(evaluadas.filter((t) => t.cumplio_reglas === false)),
+    porcentajeCumplimiento: evaluadas.length ? round2((con.length / evaluadas.length) * 100) : 0,
+  };
+}
+
+/** Un ciclo con algún paso todavía sin resultado. */
+export const cicloAbierto = (c: Ciclo) => c.pasos.some((p) => p.estado === ESTADO_ABIERTA);
+
+export const ESTADO_ABIERTA = "abierta";
+
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const round4 = (n: number) => Math.round(n * 10000) / 10000;

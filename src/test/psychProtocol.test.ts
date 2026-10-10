@@ -7,6 +7,9 @@ import {
   winRateEquilibrio,
   compararPrimerasVsResto,
   resumirPasos,
+  resultadosPorEmocion,
+  compararCumplimiento,
+  cicloAbierto,
 } from "@/lib/psych/protocol";
 
 let seq = 0;
@@ -128,5 +131,38 @@ describe("estadísticas", () => {
     expect(r.resultadoConMejora).toBe(17);
     expect(r.pasosDeRecuperacion).toBe(1);
     expect(r.resultadoRecuperacion).toBe(-10);
+  });
+});
+
+describe("emociones, reglas y ciclos abiertos", () => {
+  it("agrupa resultados por emoción previa", () => {
+    const filas = resultadosPorEmocion([
+      trade({ entrada: "2026-10-10T13:00:00Z", resultado_usd: 8.5, estado_emocional: "calma" }),
+      trade({ entrada: "2026-10-10T13:10:00Z", resultado_usd: -10, estado_emocional: "frustracion" }),
+      trade({ entrada: "2026-10-10T13:20:00Z", resultado_usd: -10, estado_emocional: "frustracion" }),
+    ]);
+    expect(filas[0]).toEqual({ emocion: "frustracion", operaciones: 2, winRate: 0, resultado: -20 });
+    expect(filas[1].winRate).toBe(100);
+  });
+
+  it("compara entradas con y sin reglas", () => {
+    const r = compararCumplimiento([
+      trade({ entrada: "2026-10-10T13:00:00Z", resultado_usd: 8.5, cumplio_reglas: true }),
+      trade({ entrada: "2026-10-10T13:10:00Z", resultado_usd: 8.5, cumplio_reglas: true }),
+      trade({ entrada: "2026-10-10T13:20:00Z", resultado_usd: -10, cumplio_reglas: false }),
+      trade({ entrada: "2026-10-10T13:30:00Z", resultado_usd: -10 }),
+    ]);
+    expect(r.porcentajeCumplimiento).toBe(66.67);
+    expect(r.conReglas.winRate).toBe(100);
+    expect(r.sinReglas.winRate).toBe(0);
+  });
+
+  it("un ciclo con un paso sin resultado está abierto y no cuenta para la sesión", () => {
+    const ciclos = agruparCiclos([
+      trade({ ciclo_id: "A", paso: 1, entrada: "2026-10-10T15:58:00Z", estado: "abierta" }),
+    ]);
+    expect(cicloAbierto(ciclos[0])).toBe(true);
+    const cerrados = ciclos.filter((c) => !cicloAbierto(c));
+    expect(evaluarSesion(cerrados).tipo).toBe("activa");
   });
 });
