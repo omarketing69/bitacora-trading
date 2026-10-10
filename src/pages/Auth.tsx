@@ -213,9 +213,11 @@ function LoginForm({
 function RegisterForm({
   isSubmitting,
   setIsSubmitting,
+  next = "/",
 }: {
   isSubmitting: boolean;
   setIsSubmitting: (v: boolean) => void;
+  next?: string;
 }) {
   const { signUp } = useAuth();
   const [email, setEmail] = useState("");
@@ -237,7 +239,7 @@ function RegisterForm({
     }
 
     setIsSubmitting(true);
-    const { error } = await signUp(email, password);
+    const { error } = await signUp(email, password, new URL(next, window.location.origin).href);
     setIsSubmitting(false);
 
     if (error) {
