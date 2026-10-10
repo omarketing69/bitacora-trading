@@ -14,6 +14,120 @@ export type Database = {
   }
   public: {
     Tables: {
+      psych_events: {
+        Row: {
+          id: string
+          user_id: string
+          sesion_id: string
+          creado_en: string
+          tipo: string
+          emocion: string | null
+          intensidad: number | null
+          trade_id: string | null
+          datos: Json
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          sesion_id: string
+          creado_en?: string
+          tipo: string
+          emocion?: string | null
+          intensidad?: number | null
+          trade_id?: string | null
+          datos?: Json
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          sesion_id?: string
+          creado_en?: string
+          tipo?: string
+          emocion?: string | null
+          intensidad?: number | null
+          trade_id?: string | null
+          datos?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "psych_events_sesion_id_fkey"
+            columns: ["sesion_id"]
+            isOneToOne: false
+            referencedRelation: "psych_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "psych_events_trade_id_fkey"
+            columns: ["trade_id"]
+            isOneToOne: false
+            referencedRelation: "trades"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      psych_sessions: {
+        Row: {
+          id: string
+          user_id: string
+          plataforma: string
+          modo: string
+          iniciada_en: string
+          cerrada_en: string | null
+          checklist: Json
+          puntaje_preparacion: number | null
+          emocion_inicial: string | null
+          intensidad_inicial: number | null
+          limite_ciclos_perdidos: number
+          limite_ciclos_ganados: number
+          pausa_minutos: number
+          pausa_hasta: string | null
+          motivo_cierre: string | null
+          emocion_final: string | null
+          reflexion: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          plataforma?: string
+          modo?: string
+          iniciada_en?: string
+          cerrada_en?: string | null
+          checklist?: Json
+          puntaje_preparacion?: number | null
+          emocion_inicial?: string | null
+          intensidad_inicial?: number | null
+          limite_ciclos_perdidos?: number
+          limite_ciclos_ganados?: number
+          pausa_minutos?: number
+          pausa_hasta?: string | null
+          motivo_cierre?: string | null
+          emocion_final?: string | null
+          reflexion?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          plataforma?: string
+          modo?: string
+          iniciada_en?: string
+          cerrada_en?: string | null
+          checklist?: Json
+          puntaje_preparacion?: number | null
+          emocion_inicial?: string | null
+          intensidad_inicial?: number | null
+          limite_ciclos_perdidos?: number
+          limite_ciclos_ganados?: number
+          pausa_minutos?: number
+          pausa_hasta?: string | null
+          motivo_cierre?: string | null
+          emocion_final?: string | null
+          reflexion?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
       trades: {
         Row: {
           contexto_1h: string | null
@@ -38,6 +152,29 @@ export type Database = {
           tf_principal: string | null
           tipo_setup: string | null
           tp_plan_usd: number | null
+          plataforma: string
+          broker: string | null
+          modo: string | null
+          origen: string | null
+          bot: string | null
+          estrategia: string | null
+          categoria_estrategia: string | null
+          senal: string | null
+          payout_pct: number | null
+          expiracion_seg: number | null
+          precio_entrada: number | null
+          precio_cierre: number | null
+          estado: string | null
+          ciclo_id: string | null
+          paso: number | null
+          tipo_paso: string | null
+          id_externo: string | null
+          ema_senal: string | null
+          contexto_15m: string | null
+          estado_emocional: string | null
+          intensidad_emocional: number | null
+          cumplio_reglas: boolean | null
+          sesion_id: string | null
           user_id: string
         }
         Insert: {
@@ -63,6 +200,29 @@ export type Database = {
           tf_principal?: string | null
           tipo_setup?: string | null
           tp_plan_usd?: number | null
+          plataforma?: string
+          broker?: string | null
+          modo?: string | null
+          origen?: string | null
+          bot?: string | null
+          estrategia?: string | null
+          categoria_estrategia?: string | null
+          senal?: string | null
+          payout_pct?: number | null
+          expiracion_seg?: number | null
+          precio_entrada?: number | null
+          precio_cierre?: number | null
+          estado?: string | null
+          ciclo_id?: string | null
+          paso?: number | null
+          tipo_paso?: string | null
+          id_externo?: string | null
+          ema_senal?: string | null
+          contexto_15m?: string | null
+          estado_emocional?: string | null
+          intensidad_emocional?: number | null
+          cumplio_reglas?: boolean | null
+          sesion_id?: string | null
           user_id: string
         }
         Update: {
@@ -88,6 +248,29 @@ export type Database = {
           tf_principal?: string | null
           tipo_setup?: string | null
           tp_plan_usd?: number | null
+          plataforma?: string
+          broker?: string | null
+          modo?: string | null
+          origen?: string | null
+          bot?: string | null
+          estrategia?: string | null
+          categoria_estrategia?: string | null
+          senal?: string | null
+          payout_pct?: number | null
+          expiracion_seg?: number | null
+          precio_entrada?: number | null
+          precio_cierre?: number | null
+          estado?: string | null
+          ciclo_id?: string | null
+          paso?: number | null
+          tipo_paso?: string | null
+          id_externo?: string | null
+          ema_senal?: string | null
+          contexto_15m?: string | null
+          estado_emocional?: string | null
+          intensidad_emocional?: number | null
+          cumplio_reglas?: boolean | null
+          sesion_id?: string | null
           user_id?: string
         }
         Relationships: []

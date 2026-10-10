@@ -20,7 +20,41 @@ export interface Trade {
   tp_plan_usd: number;
   motivo_salida: string;
   notas: string;
+
+  // --- Opciones binarias (IQ Option vía BotsStrike). Opcionales: los trades de Deriv no los tienen ---
+  plataforma?: string; // "Deriv" | "IQ Option"
+  broker?: string;
+  modo?: "REAL" | "DEMO" | string;
+  origen?: "manual" | "bot" | string;
+  bot?: string;
+  estrategia?: string;
+  categoria_estrategia?: string;
+  senal?: string;
+  payout_pct?: number;
+  expiracion_seg?: number;
+  precio_entrada?: number;
+  precio_cierre?: number;
+  estado?: "ganada" | "perdida" | "empate" | string;
+  ciclo_id?: string; // agrupa los pasos de una misma idea de entrada
+  paso?: number; // 1 = entrada inicial
+  tipo_paso?: TipoPaso;
+  id_externo?: string;
+
+  // --- Datos del entrenador de psicotrading ---
+  ema_senal?: string;
+  contexto_15m?: string;
+  estado_emocional?: string;
+  intensidad_emocional?: number;
+  cumplio_reglas?: boolean | null;
+  sesion_id?: string;
 }
+
+/**
+ * inicial: primera entrada del ciclo.
+ * mejora_entrada: paso tomado mientras la entrada anterior seguía abierta (permitido).
+ * recuperacion: paso tomado después de que la entrada anterior cerró en pérdida (violación del protocolo).
+ */
+export type TipoPaso = "inicial" | "mejora_entrada" | "recuperacion";
 
 export interface TradeStats {
   totalTrades: number;
