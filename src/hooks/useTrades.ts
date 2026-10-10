@@ -1,3 +1,4 @@
+import type { Database } from "@/integrations/supabase/types";
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -126,7 +127,7 @@ export function useTrades() {
     }
 
     // Build update object with only the fields that were provided
-    const updateData: Record<string, string | null> = {};
+    const updateData: Database["public"]["Tables"]["trades"]["Update"] = {};
     
     if ('motivo_salida' in updates) {
       updateData.motivo_salida = updates.motivo_salida || null;
