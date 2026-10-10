@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BarChart3, Loader2, Mail, Lock } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
+import { oauthReturnPath } from "@/lib/oauth-return-path";
 
 const authSchema = z.object({
   email: z.string().trim().email("Email inválido").max(255),
@@ -17,6 +18,8 @@ const authSchema = z.object({
 export default function Auth() {
   const { user, loading } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [params] = useSearchParams();
+  const next = oauthReturnPath(params.get("next"));
 
   if (loading) {
     return (
@@ -27,6 +30,10 @@ export default function Auth() {
   }
 
   if (user) {
+    if (next !== "/") {
+      window.location.replace(next);
+      return null;
+    }
     return <Navigate to="/" replace />;
   }
 
@@ -55,7 +62,7 @@ export default function Auth() {
             </TabsContent>
 
             <TabsContent value="register">
-              <RegisterForm isSubmitting={isSubmitting} setIsSubmitting={setIsSubmitting} />
+              <RegisterForm isSubmitting={isSubmitting} setIsSubmitting={setIsSubmitting} next={next} />
             </TabsContent>
           </Tabs>
         </div>
@@ -81,7 +88,7 @@ function LoginForm({
 
     const result = authSchema.safeParse({ email, password });
     if (!result.success) {
-      toast.error(result.error.errors[0].message);
+      toast.error(result.error.issues[0].message);
       return;
     }
 
@@ -206,9 +213,11 @@ function LoginForm({
 function RegisterForm({
   isSubmitting,
   setIsSubmitting,
+  next = "/",
 }: {
   isSubmitting: boolean;
   setIsSubmitting: (v: boolean) => void;
+  next?: string;
 }) {
   const { signUp } = useAuth();
   const [email, setEmail] = useState("");
@@ -225,12 +234,12 @@ function RegisterForm({
 
     const result = authSchema.safeParse({ email, password });
     if (!result.success) {
-      toast.error(result.error.errors[0].message);
+      toast.error(result.error.issues[0].message);
       return;
     }
 
     setIsSubmitting(true);
-    const { error } = await signUp(email, password);
+    const { error } = await signUp(email, password, new URL(next, window.location.origin).href);
     setIsSubmitting(false);
 
     if (error) {

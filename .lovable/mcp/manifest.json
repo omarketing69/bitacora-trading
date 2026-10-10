@@ -1,0 +1,131 @@
+{
+  "version": 1,
+  "sdk_version": "0.24.0",
+  "path": "/functions/v1/mcp",
+  "auth": {
+    "type": "oauth",
+    "issuer": "https://ooqaiypwvqizpqwzjzkq.supabase.co/auth/v1",
+    "accepted_audiences": [
+      "authenticated"
+    ]
+  },
+  "mcp": {
+    "server": {
+      "name": "trade-journal-pro",
+      "version": "0.1.0",
+      "title": "Trade Journal Pro"
+    },
+    "tools": [
+      {
+        "name": "list_trades",
+        "title": "List trades",
+        "description": "List the signed-in user's trades, newest first, optionally filtered by date range.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "from": {
+              "description": "Start date (YYYY-MM-DD), inclusive.",
+              "type": "string"
+            },
+            "to": {
+              "description": "End date (YYYY-MM-DD), inclusive.",
+              "type": "string"
+            },
+            "limit": {
+              "description": "Max trades to return (default 50).",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          }
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_trade_stats",
+        "title": "Get trade stats",
+        "description": "Summarize the signed-in user's performance: P&L, win rate, best/worst trade and profit factor.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "from": {
+              "description": "Start date (YYYY-MM-DD), inclusive.",
+              "type": "string"
+            },
+            "to": {
+              "description": "End date (YYYY-MM-DD), inclusive.",
+              "type": "string"
+            }
+          }
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "update_trade_notes",
+        "title": "Update trade notes",
+        "description": "Update the asset type, direction, entry reason, context, exit reason or notes of one of the user's trades.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Trade ID."
+            },
+            "tipo_activo": {
+              "description": "Asset, e.g. 'Boom 1000' or 'Crash 1000'.",
+              "type": "string"
+            },
+            "direccion": {
+              "description": "Trade direction.",
+              "type": "string",
+              "enum": [
+                "Compra",
+                "Venta"
+              ]
+            },
+            "entrada_por": {
+              "description": "Entry reason.",
+              "type": "string"
+            },
+            "contexto": {
+              "description": "Technical context.",
+              "type": "string"
+            },
+            "motivo_salida": {
+              "description": "Exit reason.",
+              "type": "string"
+            },
+            "notas": {
+              "description": "Free-form notes.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "id"
+          ]
+        },
+        "outputSchema": null
+      }
+    ]
+  }
+}

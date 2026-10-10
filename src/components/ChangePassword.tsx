@@ -38,7 +38,7 @@ export function ChangePassword() {
     
     if (!validation.success) {
       const fieldErrors: { newPassword?: string; confirmPassword?: string } = {};
-      validation.error.errors.forEach((err) => {
+      validation.error.issues.forEach((err) => {
         if (err.path[0] === "newPassword") {
           fieldErrors.newPassword = err.message;
         }
