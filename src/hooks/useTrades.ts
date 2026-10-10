@@ -126,7 +126,7 @@ export function useTrades() {
     }
 
     // Build update object with only the fields that were provided
-    const updateData: Record<string, unknown> = {};
+    const updateData: Record<string, string | null> = {};
     
     if ('motivo_salida' in updates) {
       updateData.motivo_salida = updates.motivo_salida || null;
@@ -138,7 +138,7 @@ export function useTrades() {
       updateData.posicion_en_canal = updates.posicion_en_canal || null;
     }
     if ('direccion' in updates) {
-      updateData.direccion = updates.direccion;
+      updateData.direccion = updates.direccion ?? null;
     }
     if ('entrada_por' in updates) {
       updateData.entrada_por = updates.entrada_por || null;
