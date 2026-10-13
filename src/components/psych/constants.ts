@@ -45,6 +45,9 @@ export const CONTEXTOS_15M = ["Tendencia alcista", "Tendencia bajista", "Lateral
 
 export const EXPIRACION_DEFECTO_SEG = 300;
 
+/** Payout habitual de IQ Option: se gana el 85% del stake, se pierde el 100%. */
+export const PAYOUT_DEFECTO_IQ = 85;
+
 export const MOTIVOS_CIERRE: Record<string, string> = {
   limite_perdida: "Límite de pérdida alcanzado",
   objetivo_ganancias: "Objetivo de 2 ciclos ganados cumplido",
