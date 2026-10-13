@@ -5,6 +5,7 @@ import { StatCard } from "./StatCard";
 import { TradeRow } from "./TradeRow";
 import { TradeDetail } from "./TradeDetail";
 import { ImportTrades } from "./ImportTrades";
+import { ImportFromPhoto } from "./ImportFromPhoto";
 import { AIAnalysis } from "./AIAnalysis";
 import { ChangePassword } from "@/components/ChangePassword";
 import { useAuth } from "@/contexts/AuthContext";
@@ -76,6 +77,7 @@ export function Dashboard() {
             </div>
             <div className="flex items-center gap-4">
               <ImportTrades onImport={importTrades} />
+              <ImportFromPhoto onImport={importTrades} saldoActual={trades[0]?.saldo_despues ?? 0} />
               {trades.length > 0 && (
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
