@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils";
 import type { EntryInput, Resultado } from "@/hooks/usePsychSession";
 import { EmotionPicker } from "./EmotionPicker";
-import { CONTEXTOS_15M, EXPIRACION_DEFECTO_SEG, INTENSIDAD_ALERTA, SENALES_EMA, emocionPorId } from "./constants";
+import { CONTEXTOS_15M, EXPIRACION_DEFECTO_SEG, INTENSIDAD_ALERTA, PAYOUT_DEFECTO_IQ, SENALES_EMA, emocionPorId } from "./constants";
 
 export type EntryMode = "nueva" | "mejora" | "fuera_protocolo";
 
@@ -44,7 +44,7 @@ export function EntryForm({ mode, busy, payoutMinimo, defaults, onSubmit, onCanc
   const [activo, setActivo] = useState(defaults.activo ?? "EUR/USD");
   const [direccion, setDireccion] = useState<"Compra" | "Venta">(defaults.direccion ?? "Compra");
   const [stake, setStake] = useState(defaults.stake ? String(defaults.stake) : "");
-  const [payout, setPayout] = useState(defaults.payout ? String(defaults.payout) : "");
+  const [payout, setPayout] = useState(defaults.payout ? String(defaults.payout) : String(PAYOUT_DEFECTO_IQ));
   const [emaSenal, setEmaSenal] = useState(defaults.emaSenal ?? "");
   const [contexto15m, setContexto15m] = useState(defaults.contexto15m ?? "");
   const [emocion, setEmocion] = useState("calma");

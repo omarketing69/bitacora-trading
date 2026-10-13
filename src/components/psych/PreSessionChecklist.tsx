@@ -22,7 +22,7 @@ export function PreSessionChecklist({ busy, saldoSugerido, onStart }: Props) {
   const [intensidad, setIntensidad] = useState(2);
   const [modo, setModo] = useState<"REAL" | "DEMO">("DEMO");
   const [saldo, setSaldo] = useState(saldoSugerido > 0 ? String(saldoSugerido) : "");
-  const [payoutMin, setPayoutMin] = useState("80");
+  const [payoutMin, setPayoutMin] = useState("85");
   const [aceptoRiesgo, setAceptoRiesgo] = useState(false);
 
   const marcados = CHECKLIST_PREVIO.filter((i) => items[i.id]).length;
