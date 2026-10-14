@@ -21,7 +21,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Brain, Shield, AlertTriangle, Loader2, Sparkles, Calendar, Filter, List, Bitcoin, DollarSign, TrendingUp, Zap } from "lucide-react";
+import { Brain, Shield, AlertTriangle, Loader2, Sparkles, Calendar, Filter, List, Bitcoin, DollarSign, TrendingUp, Zap, Clock } from "lucide-react";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
 import { format, parseISO, isWithinInterval, startOfDay, endOfDay } from "date-fns";
@@ -32,7 +32,7 @@ interface AIAnalysisProps {
 
 type AnalysisType = "risk" | "errors";
 type FilterMode = "all" | "date" | "select";
-type MarketType = "crypto" | "forex" | "sp500" | "synthetic";
+type MarketType = "crypto" | "forex" | "sp500" | "synthetic" | "binary";
 
 const MARKET_OPTIONS: { value: MarketType; label: string; icon: React.ReactNode; description: string }[] = [
   { 
@@ -58,6 +58,12 @@ const MARKET_OPTIONS: { value: MarketType; label: string; icon: React.ReactNode;
     label: "Sintéticos", 
     icon: <Zap className="h-4 w-4" />,
     description: "Boom/Crash Deriv"
+  },
+  { 
+    value: "binary", 
+    label: "Binarias", 
+    icon: <Clock className="h-4 w-4" />,
+    description: "Divisas IQ Option"
   },
 ];
 
@@ -267,7 +273,7 @@ export function AIAnalysis({ trades }: AIAnalysisProps) {
             type="single" 
             value={marketType} 
             onValueChange={(value) => value && setMarketType(value as MarketType)}
-            className="grid grid-cols-2 sm:grid-cols-4 gap-2"
+            className="grid grid-cols-2 sm:grid-cols-5 gap-2"
           >
             {MARKET_OPTIONS.map((option) => (
               <ToggleGroupItem
