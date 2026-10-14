@@ -5,7 +5,20 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-type MarketType = "crypto" | "forex" | "sp500" | "synthetic";
+type MarketType = "crypto" | "forex" | "sp500" | "synthetic" | "binary";
+
+const BINARY_KNOWLEDGE = `
+## CONOCIMIENTO CLAVE: OPCIONES BINARIAS EN DIVISAS vs FOREX SPOT
+Debes identificar cada operación: es OPCIÓN BINARIA si tiene plataforma "IQ Option" (u otro broker de binarias), payout %, tiempo de expiración o estado ganada/perdida/empate. Si no, es FOREX NORMAL (spot/CFD).
+Diferencias que DEBES aplicar al evaluar:
+- Binarias: resultado FIJO y conocido de antemano. Gana stake × payout (ej. 85%) o pierde el 100% del stake. Empate devuelve el stake. NO hay stop loss, take profit, pips, lotes, spread ni apalancamiento: el riesgo por operación ES el stake.
+- Binarias: solo importa la dirección (Call/Compra o Put/Venta) al momento exacto de la expiración; la magnitud del movimiento es irrelevante. El timing y la elección de expiración son la clave.
+- Binarias: con payout P, el win rate de equilibrio es 1/(1+P) (85% → 54.05%). Evalúa la rentabilidad contra ese umbral, no con ratio riesgo/beneficio clásico (el R:R es siempre 1 : P, desfavorable).
+- Binarias: errores típicos: martingala / duplicar stake para recuperar, sobreoperar, entradas de "recuperación" tras una pérdida, expiraciones demasiado cortas (ruido), operar en noticias, OTC con payout bajo.
+- Binarias: gestión de riesgo recomendada: stake fijo 1-2% de la cuenta, límite diario de pérdidas en ciclos, objetivo diario y parar.
+- Forex normal: SÍ evalúa stop loss, take profit, R:R, tamaño de lote/apalancamiento, pips, spread, swap y gestión de salida parcial/trailing.
+NUNCA critiques una binaria por "no tener stop loss" ni por "R:R malo" como si fuera spot; NUNCA apliques el umbral de payout a trades de forex normal. Si hay ambos tipos, analízalos en secciones separadas.
+`;
 
 // Market-specific risk management prompts
 const RISK_PROMPTS: Record<MarketType, string> = {
@@ -320,20 +333,29 @@ serve(async (req) => {
     }
 
     // Get market-specific prompt
-    const validMarketType = (["crypto", "forex", "sp500", "synthetic"].includes(marketType) 
+    const validMarketType = (["crypto", "forex", "sp500", "synthetic", "binary"].includes(marketType) 
       ? marketType 
       : "synthetic") as MarketType;
     
-    const systemPrompt = analysisType === "risk" 
-      ? RISK_PROMPTS[validMarketType] 
-      : ERROR_PROMPTS[validMarketType];
+    const basePromptKey = (validMarketType === "binary" ? "forex" : validMarketType) as Exclude<MarketType, "binary">;
+    let systemPrompt = analysisType === "risk" 
+      ? RISK_PROMPTS[basePromptKey] 
+      : ERROR_PROMPTS[basePromptKey];
+    const hasBinary = trades.some((t: any) => t.payout_pct || t.expiracion_seg || /iq option/i.test(t.plataforma || ""));
+    if (validMarketType === "binary" || validMarketType === "forex" || hasBinary) {
+      systemPrompt += "\n" + BINARY_KNOWLEDGE;
+    }
+    if (validMarketType === "binary") {
+      systemPrompt += "\nEn este análisis el usuario indicó que son OPCIONES BINARIAS sobre divisas: aplica las reglas de binarias como marco principal.";
+    }
 
     // Market type labels for context
     const marketLabels: Record<MarketType, string> = {
       crypto: "Criptomonedas",
       forex: "Forex",
       sp500: "S&P 500",
-      synthetic: "Índices Sintéticos (Deriv)"
+      synthetic: "Índices Sintéticos (Deriv)",
+      binary: "Opciones Binarias en divisas"
     };
 
     // Prepare trades data for analysis
@@ -351,7 +373,10 @@ serve(async (req) => {
 - Stake: $${t.stake_usd}
 - Resultado: $${t.resultado_usd} (${t.resultado_pct_cuenta?.toFixed(2) || 'N/A'}%)
 - Riesgo cuenta: ${t.riesgo_pct_cuenta?.toFixed(2) || 'N/A'}%
-- Saldo antes: $${t.saldo_antes} | Saldo después: $${t.saldo_despues}`;
+- Saldo antes: $${t.saldo_antes} | Saldo después: $${t.saldo_despues}`
+        + ((t.payout_pct || t.expiracion_seg || /iq option/i.test(t.plataforma || ""))
+          ? `\n- TIPO DE OPERACIÓN: OPCIÓN BINARIA (${t.plataforma || "binarias"}${t.modo ? ", " + t.modo : ""})\n- Payout: ${t.payout_pct ?? "N/A"}% | Expiración: ${t.expiracion_seg ? t.expiracion_seg + "s" : "N/A"} | Estado: ${t.estado || "N/A"}${t.paso ? ` | Ciclo paso ${t.paso} (${t.tipo_paso || ""})` : ""}${t.estrategia ? ` | Estrategia: ${t.estrategia}` : ""}${t.estado_emocional ? ` | Emoción: ${t.estado_emocional} (${t.intensidad_emocional ?? "?"}/5)` : ""}`
+          : `\n- TIPO DE OPERACIÓN: ${t.plataforma ? t.plataforma + " (" : "("}trade normal / CFD)`);
 
       if (analysisType === "errors") {
         return `${base}
