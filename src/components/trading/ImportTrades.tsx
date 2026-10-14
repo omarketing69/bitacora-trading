@@ -801,9 +801,9 @@ export function ImportTrades({ onImport }: ImportTradesProps) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button className="gap-2 bg-primary hover:bg-primary/80">
+        <Button size="sm" className="gap-1 bg-primary hover:bg-primary/80">
           <Plus className="h-4 w-4" />
-          Importar Trades
+          <span className="hidden sm:inline">Importar Trades</span>
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-2xl bg-card border-border">
