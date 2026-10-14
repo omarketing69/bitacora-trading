@@ -60,22 +60,22 @@ export function Dashboard() {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <BarChart3 className="h-6 w-6 text-primary" />
+        <div className="container mx-auto px-4 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-y-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="p-2 rounded-lg bg-primary/10 shrink-0">
+                <BarChart3 className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
               </div>
-              <div>
-                <h1 className="text-xl font-bold text-gradient">
+              <div className="min-w-0">
+                <h1 className="text-base sm:text-xl font-bold text-gradient truncate">
                   Trading Journal
                 </h1>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-muted-foreground truncate max-w-[140px] sm:max-w-none">
                   {user?.email}
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-1.5 sm:gap-3 flex-wrap justify-end">
               <ImportTrades onImport={importTrades} />
               <ImportFromPhoto onImport={importTrades} saldoActual={trades[0]?.saldo_despues ?? 0} />
               {trades.length > 0 && (
