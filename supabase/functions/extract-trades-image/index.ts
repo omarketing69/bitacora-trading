@@ -6,11 +6,24 @@ const corsHeaders = {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
+// Las capturas de IQ Option traen la hora local de Colombia (UTC-5, sin horario de verano):
+// se conserva la fecha y hora tal cual y solo se fija el offset.
+const normalizarFecha = (valor: unknown): string | null => {
+  if (typeof valor !== "string") return null;
+  const sinZona = valor.trim().replace(/(?:Z|[+-]\d{2}:?\d{2})$/, "");
+  const partes = sinZona.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{1,2}):(\d{2})(?::(\d{2}))?/);
+  if (!partes) return null;
+  const [, , mes, dia, hora, minuto, segundo] = partes;
+  const anio = String(new Date().getFullYear()).padStart(4, "0");
+  return `${anio}-${mes}-${dia}T${hora.padStart(2, "0")}:${minuto}:${segundo ?? "00"}-05:00`;
+};
+
 const SYSTEM = `Eres un extractor de datos de capturas de pantalla de historiales de trading (Deriv, IQ Option, MT5, Binance).
 Lee TODAS las operaciones visibles en la imagen y devuélvelas con la herramienta. Reglas:
 - instrumento: el activo real (ej. "Boom 1000 Index", "Crash 1000 Index", "EUR/USD"). X500/X1000 es apalancamiento, NO el activo; ponlo en apalancamiento.
 - direccion: "Compra" (buy/up/call/flecha arriba/verde) o "Venta" (sell/down/put/flecha abajo).
-- Las horas de la captura están en hora de Londres (GMT/UTC+0): conviértelas SIEMPRE a hora de Colombia (UTC-5) restando 5 horas, y devuélvelas en ISO 8601 con offset -05:00 (ej. 2026-10-14T09:30:00-05:00). Si solo hay una hora, usa la misma para entrada y salida.
+- fechas en ISO 8601 copiando EXACTAMENTE la fecha y hora que se ven en la imagen (son hora de Colombia), sin convertirlas, sin restar ni sumar horas, sin agregar 'Z' ni zona horaria. Si solo hay una hora, usa la misma para entrada y salida.
+- Si la imagen no muestra el año, usa el año actual.
 - stake y resultado como números; resultado negativo si es pérdida.
 - Si un dato no se ve, usa null. No inventes operaciones.`;
 
@@ -78,7 +91,12 @@ Deno.serve(async (req) => {
     const data = await r.json();
     const args = data.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
     const parsed = args ? JSON.parse(args) : { trades: [] };
-    return json({ trades: parsed.trades ?? [] });
+    const trades = (Array.isArray(parsed.trades) ? parsed.trades : []).map((t: Record<string, unknown>) => ({
+      ...t,
+      fecha_entrada: normalizarFecha(t.fecha_entrada),
+      fecha_salida: normalizarFecha(t.fecha_salida),
+    }));
+    return json({ trades });
   } catch (e) {
     console.error(e);
     return json({ error: e instanceof Error ? e.message : "Error desconocido" }, 500);
