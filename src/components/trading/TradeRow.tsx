@@ -59,6 +59,11 @@ export function TradeRow({ trade, onClick }: TradeRowProps) {
             <Badge variant="secondary" className="text-xs">
               {trade.tf_principal}
             </Badge>
+            {trade.tipo_sesion === "practica" && (
+              <Badge variant="outline" className="text-xs border-warning/50 text-warning">
+                Práctica
+              </Badge>
+            )}
           </div>
           <div className="flex items-center gap-3 text-xs text-muted-foreground">
             <span>{formatDate(trade.fecha_entrada)}</span>

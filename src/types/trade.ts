@@ -47,6 +47,7 @@ export interface Trade {
   intensidad_emocional?: number;
   cumplio_reglas?: boolean | null;
   sesion_id?: string;
+  tipo_sesion?: "principal" | "practica";
 }
 
 /**
