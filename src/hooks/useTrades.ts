@@ -9,7 +9,7 @@ const CAMPOS_BINARIAS = [
   "plataforma", "broker", "modo", "origen", "bot", "estrategia", "categoria_estrategia", "senal",
   "payout_pct", "expiracion_seg", "precio_entrada", "precio_cierre", "estado", "ciclo_id", "paso",
   "tipo_paso", "id_externo", "ema_senal", "contexto_15m", "estado_emocional", "intensidad_emocional",
-  "cumplio_reglas", "sesion_id",
+  "cumplio_reglas", "sesion_id", "tipo_sesion",
 ] as const;
 
 function soloDefinidos(t: Trade): Partial<Database["public"]["Tables"]["trades"]["Insert"]> {
@@ -89,6 +89,7 @@ export function useTrades() {
         intensidad_emocional: t.intensidad_emocional == null ? undefined : Number(t.intensidad_emocional),
         cumplio_reglas: t.cumplio_reglas,
         sesion_id: t.sesion_id ?? undefined,
+        tipo_sesion: (t.tipo_sesion as Trade["tipo_sesion"]) ?? "principal",
       }));
       setTrades(mappedTrades);
     }
@@ -188,6 +189,9 @@ export function useTrades() {
     }
     if ('contexto_1h' in updates) {
       updateData.contexto_1h = updates.contexto_1h || null;
+    }
+    if ('tipo_sesion' in updates) {
+      updateData.tipo_sesion = updates.tipo_sesion || 'principal';
     }
 
     const { error } = await supabase

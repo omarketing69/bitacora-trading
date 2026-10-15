@@ -8,6 +8,13 @@
       "when": 1791773273085,
       "tag": "0000_iq_option_psychotrading",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792077490943,
+      "tag": "0001_add_tipo_sesion_to_trades",
+      "breakpoints": true
     }
   ]
 }

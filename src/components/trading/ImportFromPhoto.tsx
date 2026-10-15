@@ -28,7 +28,7 @@ const toDataUrl = (f: File) =>
     r.readAsDataURL(f);
   });
 
-export function buildTradesFromPhoto(rows: Extracted[], saldoInicial: number): Trade[] {
+export function buildTradesFromPhoto(rows: Extracted[], saldoInicial: number, tipoSesion: "principal" | "practica" = "principal"): Trade[] {
   const now = new Date().toISOString();
   const sorted = [...rows].sort((a, b) => (a.fecha_entrada ?? now).localeCompare(b.fecha_entrada ?? now));
   let saldo = saldoInicial;
@@ -58,6 +58,7 @@ export function buildTradesFromPhoto(rows: Extracted[], saldoInicial: number): T
       tp_plan_usd: 0,
       motivo_salida: "",
       notas: r.apalancamiento ? `Apalancamiento ${r.apalancamiento} (importado desde foto)` : "Importado desde foto",
+      tipo_sesion: tipoSesion,
     };
   });
 }
@@ -67,6 +68,7 @@ export function ImportFromPhoto({ onImport, saldoActual }: { onImport: (t: Trade
   const [loading, setLoading] = useState(false);
   const [rows, setRows] = useState<Extracted[]>([]);
   const [saldo, setSaldo] = useState("");
+  const [tipoSesion, setTipoSesion] = useState<"principal" | "practica">("principal");
 
   const handleFile = async (f?: File) => {
     if (!f) return;
@@ -88,7 +90,7 @@ export function ImportFromPhoto({ onImport, saldoActual }: { onImport: (t: Trade
 
   const confirmar = () => {
     const base = saldo ? Number(saldo) : saldoActual;
-    onImport(buildTradesFromPhoto(rows, base));
+    onImport(buildTradesFromPhoto(rows, base, tipoSesion));
     setRows([]);
     setOpen(false);
   };
@@ -125,9 +127,22 @@ export function ImportFromPhoto({ onImport, saldoActual }: { onImport: (t: Trade
                 </div>
               ))}
             </div>
-            <div className="space-y-1">
-              <Label>Saldo antes de estas operaciones (opcional)</Label>
-              <Input type="number" placeholder={String(saldoActual)} value={saldo} onChange={(e) => setSaldo(e.target.value)} />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>Saldo antes de estas operaciones (opcional)</Label>
+                <Input type="number" placeholder={String(saldoActual)} value={saldo} onChange={(e) => setSaldo(e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label>Sesión</Label>
+                <select
+                  value={tipoSesion}
+                  onChange={(e) => setTipoSesion(e.target.value as "principal" | "practica")}
+                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="principal">Principal</option>
+                  <option value="practica">Práctica</option>
+                </select>
+              </div>
             </div>
             <Button onClick={confirmar} className="w-full">Guardar {rows.length} operación(es)</Button>
           </div>
