@@ -27,6 +27,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import iconDinero from "@/assets/icon-dinero.png";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -63,8 +64,8 @@ export function Dashboard() {
         <div className="container mx-auto px-4 py-3">
           <div className="flex flex-wrap items-center justify-between gap-y-2">
             <div className="flex items-center gap-2 min-w-0">
-              <div className="p-2 rounded-lg bg-primary/10 shrink-0">
-                <BarChart3 className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
+              <div className="p-1.5 rounded-lg bg-primary/10 shrink-0">
+                <img src={iconDinero} alt="Trading Journal" className="h-6 w-6 sm:h-7 sm:w-7" width={1024} height={1024} />
               </div>
               <div className="min-w-0">
                 <h1 className="text-base sm:text-xl font-bold text-gradient truncate">
