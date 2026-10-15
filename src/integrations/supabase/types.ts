@@ -173,6 +173,7 @@ export type Database = {
           stop_plan_usd: number | null
           tf_principal: string | null
           tipo_paso: string | null
+          tipo_sesion: string
           tipo_setup: string | null
           tp_plan_usd: number | null
           user_id: string
@@ -221,6 +222,7 @@ export type Database = {
           stop_plan_usd?: number | null
           tf_principal?: string | null
           tipo_paso?: string | null
+          tipo_sesion?: string
           tipo_setup?: string | null
           tp_plan_usd?: number | null
           user_id: string
@@ -269,6 +271,7 @@ export type Database = {
           stop_plan_usd?: number | null
           tf_principal?: string | null
           tipo_paso?: string | null
+          tipo_sesion?: string
           tipo_setup?: string | null
           tp_plan_usd?: number | null
           user_id?: string
