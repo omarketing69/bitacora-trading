@@ -11,11 +11,11 @@ const json = (body: unknown, status = 200) =>
 const normalizarFecha = (valor: unknown): string | null => {
   if (typeof valor !== "string") return null;
   const sinZona = valor.trim().replace(/(?:Z|[+-]\d{2}:?\d{2})$/, "");
-  const partes = sinZona.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{1,2}):(\d{2})(?::(\d{2}))?/);
+  const partes = sinZona.match(/^(\d{4})-(\d{1,2})-(\d{1,2})[T ](\d{1,2}):(\d{2})(?::(\d{2}))?/);
   if (!partes) return null;
-  const [, , mes, dia, hora, minuto, segundo] = partes;
+  const [, anioCapturado, mes, dia, hora, minuto, segundo] = partes;
   const anio = String(new Date().getFullYear()).padStart(4, "0");
-  return `${anio}-${mes}-${dia}T${hora.padStart(2, "0")}:${minuto}:${segundo ?? "00"}-05:00`;
+  return `${anio}-${mes.padStart(2, "0")}-${dia.padStart(2, "0")}T${hora.padStart(2, "0")}:${minuto}:${segundo ?? "00"}-05:00`;
 };
 
 const SYSTEM = `Eres un extractor de datos de capturas de pantalla de historiales de trading (Deriv, IQ Option, MT5, Binance).
