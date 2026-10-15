@@ -47,6 +47,7 @@ export function TradeDetail({ trade, open, onClose, onUpdate }: TradeDetailProps
   const [isEditingDireccion, setIsEditingDireccion] = useState(false);
   const [isEditingEntradaPor, setIsEditingEntradaPor] = useState(false);
   const [isEditingContexto, setIsEditingContexto] = useState(false);
+  const [isEditingSesion, setIsEditingSesion] = useState(false);
   
   const [motivoSalida, setMotivoSalida] = useState("");
   const [notas, setNotas] = useState("");
@@ -54,6 +55,7 @@ export function TradeDetail({ trade, open, onClose, onUpdate }: TradeDetailProps
   const [direccion, setDireccion] = useState<"Compra" | "Venta">("Compra");
   const [entradaPor, setEntradaPor] = useState("");
   const [contexto1h, setContexto1h] = useState("");
+  const [tipoSesion, setTipoSesion] = useState<"principal" | "practica">("principal");
   const [isSaving, setIsSaving] = useState(false);
   
   // Track which trade we've synced to, only sync when opening a different trade
@@ -68,6 +70,7 @@ export function TradeDetail({ trade, open, onClose, onUpdate }: TradeDetailProps
       setDireccion(trade.direccion);
       setEntradaPor(trade.entrada_por || "");
       setContexto1h(trade.contexto_1h || "");
+      setTipoSesion(trade.tipo_sesion || "principal");
       syncedTradeId.current = trade.id;
     }
     // Reset synced trade when dialog closes
@@ -168,6 +171,21 @@ export function TradeDetail({ trade, open, onClose, onUpdate }: TradeDetailProps
   const handleCancelContexto = () => {
     setContexto1h(trade.contexto_1h || "");
     setIsEditingContexto(false);
+  };
+
+  const handleSaveSesion = async () => {
+    if (!onUpdate) return;
+    setIsSaving(true);
+    const success = await onUpdate(trade.id, { tipo_sesion: tipoSesion });
+    setIsSaving(false);
+    if (success) {
+      setIsEditingSesion(false);
+    }
+  };
+
+  const handleCancelSesion = () => {
+    setTipoSesion(trade.tipo_sesion || "principal");
+    setIsEditingSesion(false);
   };
 
   return (
@@ -428,6 +446,66 @@ export function TradeDetail({ trade, open, onClose, onUpdate }: TradeDetailProps
                     )}
                   >
                     {direccion}
+                  </Badge>
+                )}
+              </div>
+
+              {/* Sesión (Principal/Práctica) */}
+              <div className="stat-card">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-xs text-muted-foreground">Sesión</p>
+                  {onUpdate && !isEditingSesion && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setIsEditingSesion(true)}
+                      className="h-5 w-5 p-0"
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </Button>
+                  )}
+                </div>
+                {isEditingSesion ? (
+                  <div className="flex items-center gap-1">
+                    <select
+                      value={tipoSesion}
+                      onChange={(e) => setTipoSesion(e.target.value as "principal" | "practica")}
+                      className="h-7 text-xs rounded-md border border-input bg-background px-2 flex-1"
+                      disabled={isSaving}
+                    >
+                      <option value="principal">Principal</option>
+                      <option value="practica">Práctica</option>
+                    </select>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleSaveSesion}
+                      disabled={isSaving}
+                      className="h-7 w-7 p-0 text-success hover:text-success"
+                    >
+                      <Check className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleCancelSesion}
+                      disabled={isSaving}
+                      className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ) : (
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "font-medium",
+                      tipoSesion === "practica"
+                        ? "border-warning/50 text-warning"
+                        : "border-success/50 text-success"
+                    )}
+                  >
+                    {tipoSesion === "practica" ? "Práctica" : "Principal"}
                   </Badge>
                 )}
               </div>
