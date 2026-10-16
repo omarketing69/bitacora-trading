@@ -28,16 +28,28 @@ const toDataUrl = (f: File) =>
     r.readAsDataURL(f);
   });
 
+/** Sanear: deja solo letras, números y "_" para que el id sea seguro. */
+const sanear = (v: string | number) => String(v).replace(/[^A-Za-z0-9]+/g, "_");
+
+/**
+ * Ids determinísticos a partir de los datos de la operación: subir dos veces la
+ * misma foto vuelve a producir los mismos ids (no duplica), pero dos operaciones
+ * distintas nunca comparten id y por eso nunca se pisan entre sí.
+ */
 export function buildTradesFromPhoto(rows: Extracted[], saldoInicial: number, tipoSesion: "principal" | "practica" = "principal"): Trade[] {
   const now = new Date().toISOString();
   const sorted = [...rows].sort((a, b) => (a.fecha_entrada ?? now).localeCompare(b.fecha_entrada ?? now));
+  const usados = new Set<string>();
   let saldo = saldoInicial;
   return sorted.map((r, i) => {
     const antes = saldo;
     saldo = antes + r.resultado_usd;
     const entrada = r.fecha_entrada ?? now;
+    const base = `foto-${sanear(entrada)}-${sanear(r.instrumento)}-${sanear(r.direccion)}-${sanear(r.stake_usd)}-${sanear(r.resultado_usd)}`;
+    const id = usados.has(base) ? `${base}_${i}` : base;
+    usados.add(id);
     return {
-      id: r.id_externo || `foto-${Date.now()}-${i}`,
+      id,
       fecha_entrada: entrada,
       fecha_salida: r.fecha_salida ?? entrada,
       instrumento: r.instrumento,
@@ -58,6 +70,7 @@ export function buildTradesFromPhoto(rows: Extracted[], saldoInicial: number, ti
       tp_plan_usd: 0,
       motivo_salida: "",
       notas: r.apalancamiento ? `Apalancamiento ${r.apalancamiento} (importado desde foto)` : "Importado desde foto",
+      id_externo: r.id_externo ?? undefined,
       tipo_sesion: tipoSesion,
     };
   });
@@ -115,37 +128,37 @@ export function ImportFromPhoto({ onImport, saldoActual }: { onImport: (t: Trade
           </div>
         )}
         {rows.length > 0 && (
-          <div className="space-y-3">
-            <div className="max-h-72 overflow-auto border border-border rounded-md text-sm">
-              {rows.map((r, i) => (
-                <div key={i} className="flex justify-between gap-2 px-3 py-2 border-b border-border">
-                  <span className="text-foreground">{r.instrumento} {r.apalancamiento && <span className="text-muted-foreground">{r.apalancamiento}</span>}</span>
-                  <span className={r.direccion === "Compra" ? "text-success" : "text-destructive"}>{r.direccion}</span>
-                  <span className="font-mono text-muted-foreground">{r.fecha_entrada?.slice(0, 16).replace("T", " ") ?? "—"}</span>
-                  <span className="font-mono">${r.stake_usd}</span>
-                  <span className={`font-mono ${r.resultado_usd >= 0 ? "profit-text" : "loss-text"}`}>{formatCurrency(r.resultado_usd)}</span>
-                </div>
-              ))}
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label>Saldo antes de estas operaciones (opcional)</Label>
-                <Input type="number" placeholder={String(saldoActual)} value={saldo} onChange={(e) => setSaldo(e.target.value)} />
+          <div className="max-h-72 overflow-auto border border-border rounded-md text-sm">
+            {rows.map((r, i) => (
+              <div key={i} className="flex justify-between gap-2 px-3 py-2 border-b border-border">
+                <span className="text-foreground">{r.instrumento} {r.apalancamiento && <span className="text-muted-foreground">{r.apalancamiento}</span>}</span>
+                <span className={r.direccion === "Compra" ? "text-success" : "text-destructive"}>{r.direccion}</span>
+                <span className="font-mono text-muted-foreground">{r.fecha_entrada?.slice(0, 16).replace("T", " ") ?? "—"}</span>
+                <span className="font-mono">${r.stake_usd}</span>
+                <span className={`font-mono ${r.resultado_usd >= 0 ? "profit-text" : "loss-text"}`}>{formatCurrency(r.resultado_usd)}</span>
               </div>
-              <div className="space-y-1">
-                <Label>Sesión</Label>
-                <select
-                  value={tipoSesion}
-                  onChange={(e) => setTipoSesion(e.target.value as "principal" | "practica")}
-                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-                >
-                  <option value="principal">Principal</option>
-                  <option value="practica">Práctica</option>
-                </select>
-              </div>
-            </div>
-            <Button onClick={confirmar} className="w-full">Guardar {rows.length} operación(es)</Button>
+            ))}
           </div>
+        )}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <Label>Saldo antes de estas operaciones (opcional)</Label>
+            <Input type="number" placeholder={String(saldoActual)} value={saldo} onChange={(e) => setSaldo(e.target.value)} />
+          </div>
+          <div className="space-y-1">
+            <Label>Sesión</Label>
+            <select
+              value={tipoSesion}
+              onChange={(e) => setTipoSesion(e.target.value as "principal" | "practica")}
+              className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+            >
+              <option value="principal">Principal</option>
+              <option value="practica">Práctica</option>
+            </select>
+          </div>
+        </div>
+        {rows.length > 0 && (
+          <Button onClick={confirmar} className="w-full">Guardar {rows.length} operación(es)</Button>
         )}
       </DialogContent>
     </Dialog>
