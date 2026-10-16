@@ -32,7 +32,7 @@ describe("ids de operaciones importadas desde foto", () => {
   });
 
   it("dos operaciones distintas nunca comparten id, aunque la IA repita id_externo", () => {
-    const repetido = foto.map((t, i) => ({ ...t, id_externo: i === 0 ? "2 Binary" : "2 Binary" }));
+    const repetido = foto.map((t) => ({ ...t, id_externo: "2 Binary" }));
     const trades = buildTradesFromPhoto(repetido, 100);
     expect(trades[0].id).not.toBe(trades[1].id);
     expect(trades[0].id).toContain("Boom_1000_Index");
